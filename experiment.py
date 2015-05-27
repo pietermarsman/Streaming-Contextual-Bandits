@@ -12,12 +12,12 @@ class Experiment(threading.Thread):
 
     MAX_I = 10000
 
-    def __init__(self, agent, run_idx=[0]):
+    def __init__(self, agent, name=None, run_idx=[0]):
         super().__init__()
         self.agent = agent
         self.run_idx = run_idx
         self.data = dict()
-        self.name = str(round(time.time()))
+        self.name = str(time.time()).replace(".", "") if name is None else name
 
     def run(self):
         for run_id in self.run_idx:
@@ -36,6 +36,6 @@ class Experiment(threading.Thread):
 
 
 if __name__ == "__main__":
-    agent = RandomAgent()
-    exp = Experiment(agent)
+    a = RandomAgent()
+    exp = Experiment(a)
     exp.start()
