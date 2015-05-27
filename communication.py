@@ -54,23 +54,19 @@ def get_context(run_id, i):
     return ret_dict
 
 
-def propose_page(run_id, i, header=15, adtype="square", product_id=10, price=10., color='white'):
+def propose_page(run_id, i, header=15, adtype="square", productid=10, price=10., color='white'):
     check_id(run_id, "runid")
     check_id(i, "i")
     check_header(header)
     check_adtype(adtype)
-    check_product_id(product_id)
+    check_product_id(productid)
     check_price(price)
     check_color(color)
 
     payload = {'teamid': TEAMID, 'teampw': TEAM_PASS, 'runid': run_id, 'i': i, 'header': 5, 'adtype': adtype,
-               'color': color, 'productid': product_id, 'price': price}
+               'color': color, 'productid': productid, 'price': price}
     ret = requests.get(PROPOSE_PAGE_URL, params=payload)
     ret_dict = json.loads(ret.text)
 
     return ret_dict
-
-
-# if __name__ == "__main__":
-#     print(get_context(0, 0))
 
