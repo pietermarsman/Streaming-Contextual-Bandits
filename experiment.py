@@ -12,7 +12,7 @@ class Experiment(threading.Thread):
 
     MAX_I = 10000
 
-    def __init__(self, agent, run_idx=[1]):
+    def __init__(self, agent, run_idx=[0]):
         super().__init__()
         self.agent = agent
         self.run_idx = run_idx
@@ -22,13 +22,10 @@ class Experiment(threading.Thread):
     def run(self):
         for run_id in self.run_idx:
             for i in range(self.MAX_I + 1):
-                print("{runid:", run_id, "i:", i, "}")
+                print("runid =", run_id, ", i =", i)
                 context = get_context(run_id, i)
-                print(context)
                 action = self.agent.decide(context)
-                print(action)
                 result = propose_page(run_id, i, **action)
-                print(result)
                 self.agent.feedback(result)
                 self.data.append({'context': context, 'action': action, 'result': result})
             self.save()
@@ -42,5 +39,4 @@ class Experiment(threading.Thread):
 if __name__ == "__main__":
     agent = RandomAgent()
     exp = Experiment(agent)
-    exp.MAX_I = 10
     exp.start()
