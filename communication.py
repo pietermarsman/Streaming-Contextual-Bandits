@@ -11,27 +11,35 @@ PROPOSE_PAGE_URL = 'http://krabspin.uci.ru.nl/proposePage.json'
 
 def check_id(id, name):
     if not (0 <= id <= 10000):
-        raise IndexError(str(name) + " should be between 0 and 10000")
+        raise AttributeError(str(name) + " should be between 0 and 10000")
 
 
 def check_header(header):
-    pass
+    correct_values = [5, 15, 35]
+    if header not in correct_values:
+        raise AttributeError("Header should be one of " + str(correct_values))
 
 
 def check_adtype(adtype):
-    pass
-
-
-def check_product_id(product_id):
-    pass
-
-
-def check_price(price):
-    pass
+    correct_values = ["skyscraper", "square", "banner"]
+    if adtype not in correct_values:
+        raise AttributeError("Adtype should be one of " + str(correct_values))
 
 
 def check_color(color):
-    pass
+    correct_values = ["green", "blue", "red", "black", "white"]
+    if color not in correct_values:
+        raise AttributeError("Color should be one of " + str(correct_values))
+
+
+def check_product_id(product_id):
+    if not (10 <= product_id <= 25):
+        raise AttributeError("Productid should be between 10 and 25")
+
+
+def check_price(price):
+    if not (0. < price <= 50.):
+        raise AttributeError("Price should be between 0 and 50")
 
 
 def get_context(run_id, i):
@@ -53,12 +61,13 @@ def propose_page(run_id, i, header=15, adtype="square", product_id=10, price=10.
     check_price(price)
     check_color(color)
 
-    payload = {'teamid': TEAMID, 'teampw': TEAM_PASS, 'runid': run_id, 'i': i, 'header': 5, 'adtype': adtype, 'color': color, 'productid': product_id, 'price': price}
+    payload = {'teamid': TEAMID, 'teampw': TEAM_PASS, 'runid': run_id, 'i': i, 'header': 5, 'adtype': adtype,
+               'color': color, 'productid': product_id, 'price': price}
     r = requests.get(PROPOSE_PAGE_URL, params=payload)
 
     return r.text
 
 
-if __name__ == "__main__":
-    print(propose_page(1, 1))
+# if __name__ == "__main__":
+#     print(propose_page(1, 1))
 
