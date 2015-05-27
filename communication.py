@@ -43,6 +43,12 @@ def check_price(price):
         raise AttributeError("Price should be between 0 and 50")
 
 
+def check_propose_result(result):
+    error = result["effect"]["Error"] if "effect" in result and "Error" in result["effect"] else 1
+    if error is not None:
+        raise IOError("propose_page resulted in an error: " + str(result))
+
+
 def get_context(run_id, i):
     check_id(run_id, "runid")
     check_id(i, "i")
@@ -67,6 +73,7 @@ def propose_page(run_id, i, header=15, adtype="square", productid=10, price=10.,
                'color': color, 'productid': productid, 'price': price}
     ret = requests.get(PROPOSE_PAGE_URL, params=payload)
     ret_dict = json.loads(ret.text)
+    check_propose_result(ret_dict)
 
     return ret_dict
 
