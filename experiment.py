@@ -1,15 +1,15 @@
 import threading
 import time
-from agents import RandomAgent
-from communication import get_context, propose_page
 import numpy as np
+from agents import GreedyAgent
+from communication import get_context, propose_page
 from misc import create_directory, add_dict
+
 
 __author__ = 'pieter'
 
 
 class Experiment(threading.Thread):
-
     MAX_I = 10000
 
     def __init__(self, agent, name=None, run_idx=[0]):
@@ -25,17 +25,24 @@ class Experiment(threading.Thread):
                 context = get_context(run_id, i)
                 action = self.agent.decide(context)
                 result = propose_page(run_id, i, **action)
-                print("runid=" + str(run_id), "i=" + str(i), "Success!" if result["effect"]["Success"] else "")
                 self.agent.feedback(result)
                 add_dict(self.data, run_id, [{'context': context, 'action': action, 'result': result}])
+                success = "Success!" if result["effect"]["Success"] else ""
+                print(self.to_string(action, run_id, i, success))
             self.save()
 
     def save(self):
         create_directory("log")
+        create_directory("agents")
         np.save('log/' + self.name, self.data)
+        np.save('agents/' + self.agent.name, self.agent.to_saveable())
+
+    def to_string(self, action, run_id, i, success):
+        return "runid={}, i={}, reward={:.4f}, {}\naction={}".format(run_id, i, self.agent.cum_reward / (i + 1),
+                                                                     success, action)
 
 
 if __name__ == "__main__":
-    a = RandomAgent()
+    a = GreedyAgent("greedy101")
     exp = Experiment(a)
     exp.start()
