@@ -1,5 +1,4 @@
 import requests
-import json
 
 __author__ = 'pieter'
 
@@ -31,6 +30,10 @@ def check_price(price):
     pass
 
 
+def check_color(color):
+    pass
+
+
 def get_context(run_id, i):
     check_id(run_id, "runid")
     check_id(i, "i")
@@ -48,13 +51,14 @@ def propose_page(run_id, i, header=15, adtype="square", product_id=10, price=10.
     check_adtype(adtype)
     check_product_id(product_id)
     check_price(price)
+    check_color(color)
 
-    payload = {'i': i, 'runid': run_id, 'teamid': TEAMID, 'adtype': adtype, 'color': color, 'productid': product_id, 'price': price, 'teampw': TEAM_PASS}
+    payload = {'teamid': TEAMID, 'teampw': TEAM_PASS, 'runid': run_id, 'i': i, 'header': 5, 'adtype': adtype, 'color': color, 'productid': product_id, 'price': price}
     r = requests.get(PROPOSE_PAGE_URL, params=payload)
 
-    pass
+    return r.text
 
 
-# if __name__ == "__main__":
-    # print(get_context(1, 1))
+if __name__ == "__main__":
+    print(propose_page(1, 1))
 
