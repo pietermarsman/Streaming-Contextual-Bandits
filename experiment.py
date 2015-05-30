@@ -1,9 +1,10 @@
+import random
 import threading
 import time
 
 import numpy as np
 
-from agents import GreedyAgent
+from agents import GreedyAgent, RandomAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 
@@ -40,11 +41,18 @@ class Experiment(threading.Thread):
         np.save('agents/' + self.agent.name, self.agent.to_saveable())
 
     def to_string(self, action, run_id, i, success):
-        return "runid={}, i={}, action={}\nreward={:.4f}, {}".format(run_id, i, action, self.agent.cum_reward / (i + 1),
+        return "runid={}, i={}, reward={:.4f}, action={} {}".format(run_id, i, self.agent.cum_reward / (i + 1), action,
                                                                      success)
 
 
 if __name__ == "__main__":
-    a = GreedyAgent("greedy101")
-    exp = Experiment(a, "greedy_runid_0000")
-    exp.start()
+    for i in range(3):
+        runid = random.choice(range(10000))
+        greedy_name = "greedy_runid_" + str(runid).zfill(4)
+        random_name = "random_runid_" + str(runid).zfill(4)
+        greedy_agent = GreedyAgent(greedy_name)
+        random_agent = RandomAgent(random_name)
+        exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
+        exp_random = Experiment(random_agent, random_name, run_idx=[runid])
+        exp_greedy.start()
+        exp_random.start()

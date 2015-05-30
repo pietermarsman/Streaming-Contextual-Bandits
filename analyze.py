@@ -11,6 +11,7 @@ __author__ = 'pieter'
 STATS = ["count", "revenue", "rate"]
 DIR = "log/"
 
+
 def create_stats(run_data):
     """
     Create stats from a data dictionary
