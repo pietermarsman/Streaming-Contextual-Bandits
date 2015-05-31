@@ -2,7 +2,7 @@ import os
 import numpy as np
 from matplotlib import pyplot as plt
 
-from misc import add_dict, create_key, create_directory
+from misc import add_dict, create_key, create_directory, flatten
 
 
 __author__ = 'pieter'
@@ -12,13 +12,16 @@ STATS = ["count", "revenue", "rate"]
 DIR = "log/"
 
 
-def create_stats(run_data):
+def create_1d_stats(run_data):
     """
-    Create stats from a data dictionary
+    Create count and revenue stats per attribute value from a data dictionary
     :param run_data: [{context: context_dict, action: action_dict, result: result_dict}]
     :return: {context_key/action_key: {context_value/action_value: {count: int, revenue: int, rate: int}}}
     """
     stats = dict()
+    means = dict()
+    total = dict(count=0, revenue=0, rate=0)
+    count = 0
     for record in run_data:
         success = record["result"]["effect"]["Success"]
         price = record["action"]["price"]
@@ -29,8 +32,34 @@ def create_stats(run_data):
             stats[k][v]["count"] = stats[k][v].get("count", 0) + 1
             stats[k][v]["revenue"] = stats[k][v].get("revenue", 0) + success * price
             stats[k][v]["rate"] = stats[k][v]["revenue"] / stats[k][v]["count"]
-    return stats
+            total["count"] += stats[k][v]["count"]
+            total["revenue"] += stats[k][v]["revenue"]
+            total["rate"] += stats[k][v]["rate"]
+            count += 1
+    for stat in total.keys():
+        means[stat] = total[stat] / count
+    return stats, means
 
+
+def create_2d_stats(run_data):
+    """
+    Create stats from a data dictionary
+    :param run_data: [{context: context_dict, action: action_dict, result: result_dict}]
+    """
+    stats = dict()
+    for record in run_data:
+        success = record["result"]["effect"]["Success"]
+        price = record["action"]["price"]
+        for ck, cv in record["context"]["context"].items():
+            for ak, av in record["action"].items():
+                create_key(stats, ck, dict())
+                create_key(stats[ck], ak, dict())
+                create_key(stats[ck][ak], cv, dict())
+                create_key(stats[ck][ak][cv], av, dict())
+                stats[ck][ak][cv][av]["count"] = stats[ck][ak][cv][av].get("count", 0) + 1
+                stats[ck][ak][cv][av]["revenue"] = stats[ck][ak][cv][av].get("revenue", 0) + success * price
+                stats[ck][ak][cv][av]["rate"] = stats[ck][ak][cv][av]["revenue"] / stats[ck][ak][cv][av]["count"]
+    return stats
 
 def stat_dict_to_list(attr_stat_dict):
     """
@@ -45,7 +74,7 @@ def stat_dict_to_list(attr_stat_dict):
     return list(attr_values), attr_stat_lists
 
 
-def plot_rate_stats(stats, name):
+def plot_1d_stats(stats, means, name):
     for attr in stats.keys():
         if attr != "ID":
             attr_values, attr_stat_list = stat_dict_to_list(stats[attr])
@@ -57,9 +86,12 @@ def plot_rate_stats(stats, name):
                 rate_axis.bar(ind, attr_stat_list[STATS[2]], width=.8)
                 count_axis.plot(ind + .4, attr_stat_list[STATS[0]], 'k-')
                 plt.xticks(ind + .4, tuple(attr_values))
-            if isinstance(attr_values[0], float):
+            elif isinstance(attr_values[0], float):
                 rate_axis.scatter(attr_values, attr_stat_list[STATS[2]])
                 count_axis.plot(attr_values, attr_stat_list[STATS[0]], 'k-')
+            else:
+                raise TypeError("Unexpected datatype. Don't know how to plot")
+            rate_axis.axhline(y=means["rate"])
 
             plt.title("Runid's = " + str(list(data.keys())))
             rate_axis.set_ylim(0, 20)
@@ -68,14 +100,52 @@ def plot_rate_stats(stats, name):
             count_axis.set_ylim(0, max(attr_stat_list[STATS[0]]) * 1.1)
             count_axis.set_ylabel("Occurrences")
 
-            dir = "stats/" + name + "/"
+            dir = "stats/" + name + "/rate/"
             create_directory(dir)
             plt.savefig(dir + attr)
             plt.close()
 
 
+def plot_2d_stats(stats, name):
+    for ck in stats:
+        if ck != "ID":
+            for ak in stats[ck]:
+                context_values_keys = sorted(stats[ck][ak].keys())
+                context_values = dict(zip(context_values_keys, range(len(context_values_keys))))
+                action_values_keys = sorted(set(flatten(list(map(lambda x: x.keys(), stats[ck][ak].values())))))
+                action_values = dict(zip(action_values_keys, range(len(action_values_keys))))
+                ck_ak_stats = np.zeros((len(context_values), len(action_values)))
+                maximum = 0
+                for cv in sorted(stats[ck][ak]):
+                    for av in sorted(stats[ck][ak][cv]):
+                        ck_ak_stats[context_values[cv], action_values[av]] = stats[ck][ak][cv][av]["rate"]
+                        maximum = max(maximum, stats[ck][ak][cv][av]["rate"])
+
+                plt.imshow(ck_ak_stats.T, interpolation="none")
+                plt.clim([0, maximum])
+                if ck_ak_stats.shape[0] > ck_ak_stats.shape[1]:
+                    plt.colorbar(orientation="horizontal")
+                else:
+                    plt.colorbar(orientation="vertical")
+
+                plt.xticks(list(range(len(context_values))), list(context_values_keys), rotation='vertical')
+                plt.yticks(list(range(len(action_values))), list(action_values_keys))
+                plt.xlabel(ck)
+                plt.ylabel(ak)
+                plt.title("Revenue / show")
+
+                dir = "stats/" + name + "/rate_interaction/"
+                create_directory(dir)
+                plt.savefig(dir + ck + "-" + ak)
+                plt.close()
+
+
 for file in os.listdir(DIR):
+    name = file[:-4]
+    print("Processing: " + name)
     create_directory("stats")
     data = np.load(DIR + file).item()
-    stats = create_stats(list(data.values())[0])
-    plot_rate_stats(stats, file[:-4])
+    stats_1d, means = create_1d_stats(list(data.values())[0])
+    stats_2d = create_2d_stats(list(data.values())[0])
+    plot_2d_stats(stats_2d, name)
+    plot_1d_stats(stats_1d, means, name)
