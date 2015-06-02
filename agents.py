@@ -1,11 +1,14 @@
 from abc import ABCMeta, abstractmethod
 import random
-import matplotlib.pyplot as plt
 import numpy as np
 from misc import logit
 
 
 __author__ = 'pieter'
+
+# idea Dirichlet distribution for better greedy decisions (without context)
+# idea Thomson sampling for simple contextual bandit problems (Frank)
+# idea Gibs sampling for probit models (Frank)
 
 
 class Agent(metaclass=ABCMeta):
@@ -117,6 +120,17 @@ class GreedyAgent(Agent):
 class LogisticAgent(Agent):
 
     def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
+        """
+        Logistic agent fitting the function y = logit(Betas * x). y is wheter or not the experiment is a succes. Betas
+        are weights for the input variables. x are the input variables; both context and action values. The best action
+        is chosen respectively to the expected reward y * price.
+
+        :param name: of the agent
+        :param saveable: possible saved instance of the agent
+        :param lambda_: step size
+        :param mu: regularization coefficient
+        :return:
+        """
         super().__init__(name, saveable)
         # Saving data for plotting
         self.success_pred = []

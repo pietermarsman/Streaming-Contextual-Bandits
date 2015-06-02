@@ -7,6 +7,7 @@ from misc import add_dict, create_key, create_directory, flatten
 
 __author__ = 'pieter'
 
+# idea plot regret
 
 STATS = ["count", "revenue", "rate"]
 DIR = "log/"

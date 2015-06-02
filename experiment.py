@@ -41,19 +41,19 @@ class Experiment(threading.Thread):
         np.save('agents/' + self.agent.name, self.agent.to_saveable())
 
     def to_string(self, action, run_id, i, success):
-        return "runid={}, i={}, reward={:.4f}, action={} {}".format(run_id, i, self.agent.cum_reward / (i + 1), action,
+        return "runid={}, i={}, agent={}, reward={:.4f}, action={} {}".format(run_id, i, self.agent.name, self.agent.cum_reward / (i + 1), action,
                                                                      success)
 
 
 if __name__ == "__main__":
-    for i in range(10):
+    for i in range(1):
         runid = random.choice(range(10000))
         greedy_name = "greedy_runid_" + str(runid).zfill(4)
         random_name = "random_runid_" + str(runid).zfill(4)
         log_name = "log_runid_" + str(runid).zfill(4)
         greedy_agent = GreedyAgent(greedy_name)
         random_agent = RandomAgent(random_name)
-        log_agent = LogisticAgent(random_name)
+        log_agent = LogisticAgent(log_name)
         exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
         exp_random = Experiment(random_agent, random_name, run_idx=[runid])
         exp_log = Experiment(log_agent, log_name, run_idx=[runid])
