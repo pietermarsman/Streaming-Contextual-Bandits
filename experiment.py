@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 
-from agents import GreedyAgent, RandomAgent
+from agents import GreedyAgent, RandomAgent, LogisticAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 
@@ -46,13 +46,17 @@ class Experiment(threading.Thread):
 
 
 if __name__ == "__main__":
-    for i in range(3):
+    for i in range(10):
         runid = random.choice(range(10000))
         greedy_name = "greedy_runid_" + str(runid).zfill(4)
         random_name = "random_runid_" + str(runid).zfill(4)
+        log_name = "log_runid_" + str(runid).zfill(4)
         greedy_agent = GreedyAgent(greedy_name)
         random_agent = RandomAgent(random_name)
+        log_agent = LogisticAgent(random_name)
         exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
         exp_random = Experiment(random_agent, random_name, run_idx=[runid])
+        exp_log = Experiment(log_agent, log_name, run_idx=[runid])
         exp_greedy.start()
         exp_random.start()
+        exp_log.start()
