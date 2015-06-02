@@ -116,19 +116,18 @@ class GreedyAgent(Agent):
 
 class LogisticAgent(Agent):
 
-    def __init__(self, name, saveable=None):
+    def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
         super().__init__(name, saveable)
-        self.A = None
-        self.b = None
-        self.context_vector = None
-        self.action_vector = None
+        # Saving data for plotting
         self.success_pred = []
         self.failure_pred = []
-
+        # Used for logistic regression
+        self.last_context_vec = None
+        self.last_action_vec = None
         self.betas = None
-        self.lam = 0.01
-        self.mu = 0.0001
-
+        self.lam = lambda_
+        self.mu = mu
+        # Generating all possible actions in advance
         self.action_mat = []
         self.action_values = []
         self.prices = []
@@ -145,55 +144,54 @@ class LogisticAgent(Agent):
         self.prices = np.array(self.prices)
 
     def from_saveable(self, saveable):
-        pass
+        self.betas = saveable["betas"]
 
     def to_saveable(self):
-        pass
+        return {"betas": self.betas}
 
     def decide(self, context):
-        self.context_vector = self.context_to_vector(context)
+        self.last_context_vec = self.context_to_vector(context)
 
         if self.betas is not None:
-            predictors = np.hstack((np.repeat(self.context_vector.reshape((1, -1)), self.action_mat.shape[0], 0), self.action_mat))
-            feat = predictors.dot(self.betas.reshape((-1, 1)))
-            p = logit(feat)
-            values = p * self.prices.reshape((-1, 1))
-            norm_values = values / np.sum(values)
-            id = np.where(np.cumsum(norm_values) > np.random.random())[0][0]
-            self.last_action = self.action_values[id]
+            predictors = np.hstack((np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0), self.action_mat))
+            p = logit(predictors.dot(self.betas.reshape((-1, 1))))
+            rewards = p * self.prices.reshape((-1, 1))
+            norm_rewards = rewards / np.sum(rewards)
+            actiond_id = np.where(np.cumsum(norm_rewards) > np.random.random())[0][0]
+            self.last_action = self.action_values[actiond_id]
         else:
             self.last_action = random.choice(self.action_values)
-        self.action_vector = self.action_to_vector(self.last_action)
+        self.last_action_vec = self.action_to_vector(self.last_action)
         return self.last_action
 
     def feedback(self, result):
         super().feedback(result)
-        vector = np.hstack((self.context_vector, self.action_vector))
+        vector = np.hstack((self.last_context_vec, self.last_action_vec))
         self.streaming_lr(vector, np.array([self.last_success]))
-        y_ = logit(vector.dot(self.betas))
-        if self.last_success > 0.:
-            self.success_pred.append(y_)
-        else:
-            self.failure_pred.append(y_)
-        if (len(self.success_pred) + len(self.failure_pred)) % 10 == 0:
-            plt.ion()
-            plt.cla()
-            plt.hist([self.success_pred, self.failure_pred], normed=True)
-            plt.draw()
-            plt.pause(0.001)
+        # y_ = logit(vector.dot(self.betas))
+        # if self.last_success > 0.:
+        #     self.success_pred.append(y_)
+        # else:
+        #     self.failure_pred.append(y_)
+        # if (len(self.success_pred) + len(self.failure_pred)) % 10 == 0:
+        #     plt.ion()
+        #     plt.cla()
+        #     plt.hist([self.success_pred, self.failure_pred], normed=True)
+        #     plt.draw()
+        #     plt.pause(0.001)
 
     def streaming_lr(self, x_t, y_t):
         if self.betas is None:
             self.betas = np.zeros(x_t.shape[0])
         p = logit(self.betas.dot(x_t))
         self.betas *= (1 - 2. * self.lam * self.mu)
-        print(self)
-        correction = self.lam * (y_t - p) * x_t
-        self.betas += correction
+        self.betas += self.lam * (y_t - p) * x_t
 
     def __str__(self):
-        names = [x for l in [Agent.HEADERS, Agent.ADTYPES, Agent.COLORS, Agent.PRODUCTIDS, Agent.PRICES] for x in l]
-        return str(list(zip(self.betas.tolist(), names)))
+        names = [x for l in [["Intercept", "Age"], Agent.LANGUAGES, Agent.REFERES, Agent.AGENTS, Agent.HEADERS, Agent.ADTYPES, Agent.COLORS, Agent.PRODUCTIDS, ["Price"]] for x in l]
+        tuple_list = list(zip(self.betas.tolist(), names))
+        formated_list = ", ".join(list(map(lambda x: str(x[1]) + "={:.2f}".format(x[0]), tuple_list)))
+        return "Online Logistic Regression with betas: " + str(formated_list)
 
     @staticmethod
     def one_one_array(size, one_index):
