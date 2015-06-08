@@ -1,10 +1,12 @@
 import random
 import threading
 import time
+import datetime
 
 import numpy as np
 
 from agents import GreedyAgent, RandomAgent, LogisticAgent
+from agents import MultiBetaAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 
@@ -21,6 +23,7 @@ class Experiment(threading.Thread):
         self.run_idx = run_idx
         self.data = dict()
         self.name = str(time.time()).replace(".", "") if name is None else name
+        self.time_str = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S_%f")
 
     def run(self):
         for run_id in self.run_idx:
@@ -37,8 +40,9 @@ class Experiment(threading.Thread):
     def save(self):
         create_directory("log")
         create_directory("agents")
-        np.save('log/' + self.name, self.data)
-        np.save('agents/' + self.agent.name, self.agent.to_saveable())
+        time_str = self.time_str + "_"
+        np.save('log/' + time_str + self.name, self.data)
+        np.save('agents/' + time_str + self.agent.name, self.agent.to_saveable())
 
     def to_string(self, action, run_id, i, success):
         return "runid={}, i={}, agent={}, reward={:.4f}, action={} {}".format(run_id, i, self.agent.name, self.agent.cum_reward / (i + 1), action,
@@ -48,15 +52,23 @@ class Experiment(threading.Thread):
 if __name__ == "__main__":
     for i in range(1):
         runid = random.choice(range(10000))
+        # Greedy agent
         greedy_name = "greedy_runid_" + str(runid).zfill(4)
-        random_name = "random_runid_" + str(runid).zfill(4)
-        log_name = "log_runid_" + str(runid).zfill(4)
         greedy_agent = GreedyAgent(greedy_name)
-        random_agent = RandomAgent(random_name)
-        log_agent = LogisticAgent(log_name)
         exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
-        exp_random = Experiment(random_agent, random_name, run_idx=[runid])
-        exp_log = Experiment(log_agent, log_name, run_idx=[runid])
         exp_greedy.start()
+        # Random agent
+        random_name = "random_runid_" + str(runid).zfill(4)
+        random_agent = RandomAgent(random_name)
+        exp_random = Experiment(random_agent, random_name, run_idx=[runid])
         exp_random.start()
-        exp_log.start()
+        # Dirichlet agent
+        diri_name = "multibeta_runid_" + str(runid).zfill(4)
+        diri_agent = MultiBetaAgent(diri_name)
+        exp_diri = Experiment(diri_agent, diri_name, run_idx=[runid])
+        exp_diri.start()
+        # Logistic agent
+        # log_name = "log_runid_" + str(runid).zfill(4)
+        # log_agent = LogisticAgent(log_name)
+        # exp_log = Experiment(log_agent, log_name, run_idx=[runid])
+        # exp_log.start()

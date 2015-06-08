@@ -62,6 +62,7 @@ def create_2d_stats(run_data):
                 stats[ck][ak][cv][av]["rate"] = stats[ck][ak][cv][av]["revenue"] / stats[ck][ak][cv][av]["count"]
     return stats
 
+
 def stat_dict_to_list(attr_stat_dict):
     """
     :param attr_stat_dict: {attribute_value: {count: int, revenue: int, rate: int}}
@@ -141,12 +142,25 @@ def plot_2d_stats(stats, name):
                 plt.close()
 
 
+def plot_regret(run_data):
+    max_reward = 15
+    rewards = list(map(lambda record: record["result"]["effect"]["Success"] * record["action"]["price"], run_data))
+    cum_rewards = np.cumsum(rewards)
+    max_reward = np.cumsum(np.ones(cum_rewards.shape) * max_reward)
+    plt.plot(max_reward - cum_rewards)
+    filename = os.path.join("stats", name, "regret")
+    plt.savefig(filename)
+    plt.close()
+
+
 for file in os.listdir(DIR):
     name = file[:-4]
-    print("Processing: " + name)
-    create_directory("stats")
-    data = np.load(DIR + file).item()
-    stats_1d, means = create_1d_stats(list(data.values())[0])
-    stats_2d = create_2d_stats(list(data.values())[0])
-    plot_2d_stats(stats_2d, name)
-    plot_1d_stats(stats_1d, means, name)
+    if name.startswith("2015"):
+        print("Processing: " + name)
+        create_directory("stats")
+        data = np.load(DIR + file).item()
+        stats_1d, means = create_1d_stats(list(data.values())[0])
+        stats_2d = create_2d_stats(list(data.values())[0])
+        plot_2d_stats(stats_2d, name)
+        plot_1d_stats(stats_1d, means, name)
+        plot_regret(list(data.values())[0])

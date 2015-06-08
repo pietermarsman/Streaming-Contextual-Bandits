@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod
 import random
+
 import numpy as np
+
 from misc import logit
 
 
@@ -12,7 +14,6 @@ __author__ = 'pieter'
 
 
 class Agent(metaclass=ABCMeta):
-
     HEADERS = [5, 15, 35]
     ADTYPES = ["skyscraper", "square", "banner"]
     COLORS = ["green", "blue", "red", "black", "white"]
@@ -47,9 +48,11 @@ class Agent(metaclass=ABCMeta):
     def to_saveable(self):
         pass
 
+    def action_sizes(self):
+        return len(Agent.HEADERS), len(Agent.ADTYPES), len(Agent.COLORS), len(Agent.PRODUCTIDS), len(Agent.PRICES)
+
 
 class RandomAgent(Agent):
-
     def __init__(self, name):
         super().__init__(name)
 
@@ -72,16 +75,13 @@ class RandomAgent(Agent):
 class GreedyAgent(Agent):
     def __init__(self, name, saveable=None):
         super().__init__(name, saveable)
-        num_headers = len(Agent.HEADERS)
-        num_adtypes = len(Agent.ADTYPES)
-        num_colors = len(Agent.COLORS)
-        num_products = len(Agent.PRODUCTIDS)
-        num_price = len(Agent.PRICES)
+        num_headers, num_adtypes, num_colors, num_products, num_prices = self.action_sizes()
         self.counts = dict(header=np.ones(num_headers), adtype=np.ones(num_adtypes), color=np.ones(num_colors),
-                           product=np.ones(num_products), price=np.ones(num_price))
+                           product=np.ones(num_products), price=np.ones(num_prices))
         start = 50
-        self.revenue = dict(header=np.ones(num_headers) * start, adtype=np.ones(num_adtypes) * start, color=np.ones(num_colors) * start,
-                              product=np.ones(num_products) * start, price=np.ones(num_price) * start)
+        self.revenue = dict(header=np.ones(num_headers) * start, adtype=np.ones(num_adtypes) * start,
+                            color=np.ones(num_colors) * start,
+                            product=np.ones(num_products) * start, price=np.ones(num_prices) * start)
         self.last_choice = None
         self.from_saveable(saveable)
 
@@ -100,8 +100,9 @@ class GreedyAgent(Agent):
         product_id = compute_best("product")
         price_id = compute_best("price")
         self.last_choice = dict(header=header_id, adtype=adtype_id, color=color_id, product=product_id, price=price_id)
-        self.last_action = {"header": Agent.HEADERS[header_id], "adtype": Agent.ADTYPES[adtype_id], "color": Agent.COLORS[color_id],
-                "productid": Agent.PRODUCTIDS[product_id], "price": Agent.PRICES[price_id]}
+        self.last_action = {"header": Agent.HEADERS[header_id], "adtype": Agent.ADTYPES[adtype_id],
+                            "color": Agent.COLORS[color_id],
+                            "productid": Agent.PRODUCTIDS[product_id], "price": Agent.PRICES[price_id]}
         return self.last_action
 
     def feedback(self, result):
@@ -117,8 +118,55 @@ class GreedyAgent(Agent):
         return saveable
 
 
-class LogisticAgent(Agent):
+class MultiBetaAgent(Agent):
+    def __init__(self, name, saveable=None):
+        super().__init__(name, saveable)
+        num_headers, num_adtypes, num_colors, num_products, num_prices = self.action_sizes()
+        self.successes = dict(header=np.ones(num_headers), adtype=np.ones(num_adtypes),
+                           color=np.ones(num_colors),
+                           product=np.ones(num_products), price=np.ones(num_prices))
+        self.counts = dict(header=np.ones(num_headers), adtype=np.ones(num_adtypes),
+                           color=np.ones(num_colors),
+                           product=np.ones(num_products), price=np.ones(num_prices))
+        self.last_choice = None
+        self.from_saveable(saveable)
 
+    def from_saveable(self, saveable):
+        if saveable is not None:
+            self.counts = saveable["counts"]
+
+    def to_saveable(self):
+        return {"counts": self.counts}
+
+    def decide(self, context):
+        def sample_best(key):
+            success_sample = []
+            for action in range(self.successes[key].shape[0]):
+                success_sample.append(np.random.beta(self.successes[key][action], self.counts[key][action]))
+            if key is 'price':
+                success_sample = np.array(success_sample) * np.array(Agent.PRICES)
+            return np.argmax(success_sample)
+
+        header_id = sample_best("header")
+        adtype_id = sample_best("adtype")
+        color_id = sample_best("color")
+        product_id = sample_best("product")
+        price_id = sample_best("price")
+
+        self.last_choice = dict(header=header_id, adtype=adtype_id, color=color_id, product=product_id, price=price_id)
+        self.last_action = {"header": Agent.HEADERS[header_id], "adtype": Agent.ADTYPES[adtype_id],
+                            "color": Agent.COLORS[color_id],
+                            "productid": Agent.PRODUCTIDS[product_id], "price": Agent.PRICES[price_id]}
+        return self.last_action
+
+    def feedback(self, result):
+        super().feedback(result)
+        for key in self.counts:
+            self.counts[key][self.last_choice[key]] += 1
+            self.successes[key][self.last_choice[key]] += self.last_success
+
+
+class LogisticAgent(Agent):
     def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
         """
         Logistic agent fitting the function y = logit(Betas * x). y is wheter or not the experiment is a succes. Betas
@@ -150,7 +198,8 @@ class LogisticAgent(Agent):
                 for color in Agent.COLORS:
                     for product_id in Agent.PRODUCTIDS:
                         for price in Agent.PRICES:
-                            action = {"header": header, "adtype": adtype, "color": color, "productid": product_id, "price": price}
+                            action = {"header": header, "adtype": adtype, "color": color, "productid": product_id,
+                                      "price": price}
                             self.action_mat.append(self.action_to_vector(action))
                             self.action_values.append(action)
                             self.prices.append(price)
@@ -167,7 +216,8 @@ class LogisticAgent(Agent):
         self.last_context_vec = self.context_to_vector(context)
 
         if self.betas is not None:
-            predictors = np.hstack((np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0), self.action_mat))
+            predictors = np.hstack(
+                (np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0), self.action_mat))
             p = logit(predictors.dot(self.betas.reshape((-1, 1))))
             rewards = p * self.prices.reshape((-1, 1))
             norm_rewards = rewards / np.sum(rewards)
@@ -184,7 +234,7 @@ class LogisticAgent(Agent):
         self.streaming_lr(vector, np.array([self.last_success]))
         # y_ = logit(vector.dot(self.betas))
         # if self.last_success > 0.:
-        #     self.success_pred.append(y_)
+        # self.success_pred.append(y_)
         # else:
         #     self.failure_pred.append(y_)
         # if (len(self.success_pred) + len(self.failure_pred)) % 10 == 0:
@@ -202,7 +252,9 @@ class LogisticAgent(Agent):
         self.betas += self.lam * (y_t - p) * x_t
 
     def __str__(self):
-        names = [x for l in [["Intercept", "Age"], Agent.LANGUAGES, Agent.REFERES, Agent.AGENTS, Agent.HEADERS, Agent.ADTYPES, Agent.COLORS, Agent.PRODUCTIDS, ["Price"]] for x in l]
+        names = [x for l in
+                 [["Intercept", "Age"], Agent.LANGUAGES, Agent.REFERES, Agent.AGENTS, Agent.HEADERS, Agent.ADTYPES,
+                  Agent.COLORS, Agent.PRODUCTIDS, ["Price"]] for x in l]
         tuple_list = list(zip(self.betas.tolist(), names))
         formated_list = ", ".join(list(map(lambda x: str(x[1]) + "={:.2f}".format(x[0]), tuple_list)))
         return "Online Logistic Regression with betas: " + str(formated_list)
