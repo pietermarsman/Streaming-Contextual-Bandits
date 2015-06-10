@@ -5,8 +5,9 @@ import datetime
 
 import numpy as np
 
-from agents import GreedyAgent, RandomAgent, LogisticAgent
+from agents import GreedyAgent, RandomAgent, NaiveLogisticAgent
 from agents import MultiBetaAgent
+from agents import BayesianRegressionAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 
@@ -53,22 +54,27 @@ if __name__ == "__main__":
     for i in range(1):
         runid = random.choice(range(10000))
         # Greedy agent
-        greedy_name = "greedy_runid_" + str(runid).zfill(4)
-        greedy_agent = GreedyAgent(greedy_name)
-        exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
-        exp_greedy.start()
+        # greedy_name = "greedy_runid_" + str(runid).zfill(4)
+        # greedy_agent = GreedyAgent(greedy_name)
+        # exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
+        # exp_greedy.start()
         # Random agent
-        random_name = "random_runid_" + str(runid).zfill(4)
-        random_agent = RandomAgent(random_name)
-        exp_random = Experiment(random_agent, random_name, run_idx=[runid])
-        exp_random.start()
-        # Dirichlet agent
-        diri_name = "multibeta_runid_" + str(runid).zfill(4)
-        diri_agent = MultiBetaAgent(diri_name)
-        exp_diri = Experiment(diri_agent, diri_name, run_idx=[runid])
-        exp_diri.start()
+        # random_name = "random_runid_" + str(runid).zfill(4)
+        # random_agent = RandomAgent(random_name)
+        # exp_random = Experiment(random_agent, random_name, run_idx=[runid])
+        # exp_random.start()
+        # Multi beta agent
+        # multib_name = "multibeta_runid_" + str(runid).zfill(4)
+        # multib_agent = MultiBetaAgent(multib_name)
+        # exp_multib = Experiment(multib_agent, multib_name, run_idx=[runid])
+        # exp_multib.start()
         # Logistic agent
         # log_name = "log_runid_" + str(runid).zfill(4)
-        # log_agent = LogisticAgent(log_name)
+        # log_agent = NaiveLogisticAgent(log_name)
         # exp_log = Experiment(log_agent, log_name, run_idx=[runid])
         # exp_log.start()
+        # Bayesian regression agent
+        bayesreg_name = "bayesreg_runid_" + str(runid).zfill(4)
+        bayesreg_agent = BayesianRegressionAgent(bayesreg_name)
+        exp_bayesreg = Experiment(bayesreg_agent, bayesreg_name, run_idx=[runid])
+        exp_bayesreg.run()

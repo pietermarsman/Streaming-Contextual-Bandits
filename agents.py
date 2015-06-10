@@ -4,11 +4,10 @@ import random
 import numpy as np
 
 from misc import logit
-
+import matplotlib.pyplot as plt
 
 __author__ = 'pieter'
 
-# idea Dirichlet distribution for better greedy decisions (without context)
 # idea Thomson sampling for simple contextual bandit problems (Frank)
 # idea Gibs sampling for probit models (Frank)
 
@@ -50,6 +49,50 @@ class Agent(metaclass=ABCMeta):
 
     def action_sizes(self):
         return len(Agent.HEADERS), len(Agent.ADTYPES), len(Agent.COLORS), len(Agent.PRODUCTIDS), len(Agent.PRICES)
+
+    @staticmethod
+    def generate_action_matrix():
+        action_mat = []
+        prices = []
+        action_values = []
+        for header in Agent.HEADERS:
+            for adtype in Agent.ADTYPES:
+                for color in Agent.COLORS:
+                    for product_id in Agent.PRODUCTIDS:
+                        for price in Agent.PRICES:
+                            action = {"header": header, "adtype": adtype, "color": color, "productid": product_id,
+                                      "price": price}
+                            action_mat.append(Agent.action_to_vector(action))
+                            action_values.append(action)
+                            prices.append(price)
+        action_mat = np.array(action_mat)
+        prices = np.array(prices)
+        return action_mat, action_values, prices
+
+    @staticmethod
+    def action_to_vector(action):
+        header_vector = Agent.one_one_array(len(Agent.HEADERS), Agent.HEADERS.index(action["header"]))
+        adtype_vector = Agent.one_one_array(len(Agent.ADTYPES), Agent.ADTYPES.index(action["adtype"]))
+        color_vector = Agent.one_one_array(len(Agent.COLORS), Agent.COLORS.index(action["color"]))
+        product_vector = Agent.one_one_array(len(Agent.PRODUCTIDS), Agent.PRODUCTIDS.index(action["productid"]))
+        price_vector = action["price"] / 50
+        return np.hstack((header_vector, adtype_vector, color_vector, product_vector, price_vector))
+
+    @staticmethod
+    def one_one_array(size, one_index):
+        arr = np.zeros(size)
+        arr[one_index] = 1.
+        return arr
+
+    @staticmethod
+    def context_to_vector(context):
+        context = context["context"]
+        intercept_vector = np.ones(1)
+        age_vector = context["Age"] / 100
+        language_vector = Agent.one_one_array(len(Agent.LANGUAGES), Agent.LANGUAGES.index(context["Language"]))
+        referer_vector = Agent.one_one_array(len(Agent.REFERES), Agent.REFERES.index(context["Referer"]))
+        agent_vector = Agent.one_one_array(len(Agent.AGENTS), Agent.AGENTS.index(context["Agent"]))
+        return np.hstack((intercept_vector, age_vector, language_vector, referer_vector, agent_vector))
 
 
 class RandomAgent(Agent):
@@ -166,7 +209,7 @@ class MultiBetaAgent(Agent):
             self.successes[key][self.last_choice[key]] += self.last_success
 
 
-class LogisticAgent(Agent):
+class NaiveLogisticAgent(Agent):
     def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
         """
         Logistic agent fitting the function y = logit(Betas * x). y is wheter or not the experiment is a succes. Betas
@@ -190,21 +233,7 @@ class LogisticAgent(Agent):
         self.lam = lambda_
         self.mu = mu
         # Generating all possible actions in advance
-        self.action_mat = []
-        self.action_values = []
-        self.prices = []
-        for header in Agent.HEADERS:
-            for adtype in Agent.ADTYPES:
-                for color in Agent.COLORS:
-                    for product_id in Agent.PRODUCTIDS:
-                        for price in Agent.PRICES:
-                            action = {"header": header, "adtype": adtype, "color": color, "productid": product_id,
-                                      "price": price}
-                            self.action_mat.append(self.action_to_vector(action))
-                            self.action_values.append(action)
-                            self.prices.append(price)
-        self.action_mat = np.array(self.action_mat)
-        self.prices = np.array(self.prices)
+        self.action_mat, self.action_values, self.prices = Agent.generate_action_matrix()
 
     def from_saveable(self, saveable):
         self.betas = saveable["betas"]
@@ -216,8 +245,8 @@ class LogisticAgent(Agent):
         self.last_context_vec = self.context_to_vector(context)
 
         if self.betas is not None:
-            predictors = np.hstack(
-                (np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0), self.action_mat))
+            context_predictors = np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0)
+            predictors = np.hstack((context_predictors, self.action_mat))
             p = logit(predictors.dot(self.betas.reshape((-1, 1))))
             rewards = p * self.prices.reshape((-1, 1))
             norm_rewards = rewards / np.sum(rewards)
@@ -232,17 +261,6 @@ class LogisticAgent(Agent):
         super().feedback(result)
         vector = np.hstack((self.last_context_vec, self.last_action_vec))
         self.streaming_lr(vector, np.array([self.last_success]))
-        # y_ = logit(vector.dot(self.betas))
-        # if self.last_success > 0.:
-        # self.success_pred.append(y_)
-        # else:
-        #     self.failure_pred.append(y_)
-        # if (len(self.success_pred) + len(self.failure_pred)) % 10 == 0:
-        #     plt.ion()
-        #     plt.cla()
-        #     plt.hist([self.success_pred, self.failure_pred], normed=True)
-        #     plt.draw()
-        #     plt.pause(0.001)
 
     def streaming_lr(self, x_t, y_t):
         if self.betas is None:
@@ -259,28 +277,81 @@ class LogisticAgent(Agent):
         formated_list = ", ".join(list(map(lambda x: str(x[1]) + "={:.2f}".format(x[0]), tuple_list)))
         return "Online Logistic Regression with betas: " + str(formated_list)
 
-    @staticmethod
-    def one_one_array(size, one_index):
-        arr = np.zeros(size)
-        arr[one_index] = 1.
-        return arr
+
+class BayesianRegressionAgent(Agent):
+
+    def __init__(self, name, saveable=None, alpha=0.001, beta=1/100):
+        super().__init__(name, saveable)
+        self.alpha = alpha
+        self.beta = beta
+        self.mat_action, self.action_values, self.prices = Agent.generate_action_matrix()
+        self.mean = None
+        self.sigma = None
+
+        self.predictors = None
+        self.last_vec_action = None
+        self.last_vec_context = None
+
+    def from_saveable(self, saveable):
+        pass
+
+    def to_saveable(self):
+        pass
+
+    def decide(self, context):
+        self.last_vec_context = Agent.context_to_vector(context)
+        mat_context = np.repeat(self.last_vec_context.reshape((1, -1)), self.mat_action.shape[0], 0)
+        self.predictors = np.hstack((mat_context, self.mat_action))
+        big_theta = BayesianRegressionAgent.design_function(self.predictors)
+
+        if self.mean is None:
+            self.mean = np.zeros((big_theta.shape[1], 1))
+            self.var_inv = np.diag(np.ones(big_theta.shape[1]) * self.alpha)
+
+        # Random action
+        header = random.choice(Agent.HEADERS)
+        adtype = random.choice(Agent.ADTYPES)
+        color = random.choice(Agent.COLORS)
+        product_id = random.choice(Agent.PRODUCTIDS)
+        price = random.choice(Agent.PRICES)
+        self.last_action = {"header": header, "adtype": adtype, "color": color, "productid": product_id, "price": price}
+        self.last_vec_action = Agent.action_to_vector(self.last_action)
+
+        self.plot()
+
+        return self.last_action
+
+    def feedback(self, result):
+        super().feedback(result)
+        target = result["effect"]["Success"] * self.last_action["price"]
+        print(target)
+        predictor = np.hstack((self.last_vec_context, self.last_vec_action))
+        theta = BayesianRegressionAgent.design_function(predictor)
+        new_var_inv = self.var_inv + self.beta * theta.reshape((-1, 1)).dot(theta.reshape((1, -1)))
+        learn = self.beta * theta.reshape((-1, 1)) * target
+        self.mean = np.linalg.inv(new_var_inv).dot(self.var_inv.dot(self.mean.reshape((-1, 1)) + learn))
+        self.var_inv = new_var_inv
 
     @staticmethod
-    def action_to_vector(action):
-        header_vector = LogisticAgent.one_one_array(len(Agent.HEADERS), Agent.HEADERS.index(action["header"]))
-        adtype_vector = LogisticAgent.one_one_array(len(Agent.ADTYPES), Agent.ADTYPES.index(action["adtype"]))
-        color_vector = LogisticAgent.one_one_array(len(Agent.COLORS), Agent.COLORS.index(action["color"]))
-        product_vector = LogisticAgent.one_one_array(len(Agent.PRODUCTIDS), Agent.PRODUCTIDS.index(action["productid"]))
-        price_vector = action["price"] / 50
-        return np.hstack((header_vector, adtype_vector, color_vector, product_vector, price_vector))
+    def design_function(predictor):
+        return np.hstack((predictor, predictor**2))
 
-
-    @staticmethod
-    def context_to_vector(context):
-        context = context["context"]
-        intercept_vector = np.ones(1)
-        age_vector = context["Age"] / 100
-        language_vector = LogisticAgent.one_one_array(len(Agent.LANGUAGES), Agent.LANGUAGES.index(context["Language"]))
-        referer_vector = LogisticAgent.one_one_array(len(Agent.REFERES), Agent.REFERES.index(context["Referer"]))
-        agent_vector = LogisticAgent.one_one_array(len(Agent.AGENTS), Agent.AGENTS.index(context["Agent"]))
-        return np.hstack((intercept_vector, age_vector, language_vector, referer_vector, agent_vector))
+    def plot(self):
+        data = []
+        for i in range(1, 50):
+            vec_context = self.last_vec_context
+            # vec_context[1] = i / 100
+            predictor = np.hstack((vec_context, self.last_vec_action))
+            price_predictor = predictor
+            price_predictor[-1] = i / 50.
+            theta = BayesianRegressionAgent.design_function(price_predictor)
+            mean_pred = self.mean.T.dot(theta.T)
+            var_pred = 1 / self.beta + np.sqrt(theta.T.dot(np.linalg.inv(self.var_inv).dot(theta)))
+            # std_pred = (self.mean + np.linalg.inv(self.var_inv).dot(np.ones(big_theta.shape))).dot(big_theta)
+            data.append([np.sum(mean_pred)-var_pred, np.sum(mean_pred), np.sum(mean_pred)+var_pred])
+        plt.cla()
+        plt.ion()
+        plt.plot(data)
+        # plt.ylim([-100, 100])
+        plt.draw()
+        plt.pause(0.001)
