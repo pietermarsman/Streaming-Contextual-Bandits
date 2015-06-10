@@ -2,6 +2,7 @@ from abc import ABCMeta, abstractmethod
 import random
 
 import numpy as np
+from sklearn.linear_model import SGDRegressor
 
 from misc import logit
 import matplotlib.pyplot as plt
@@ -88,11 +89,16 @@ class Agent(metaclass=ABCMeta):
     def context_to_vector(context):
         context = context["context"]
         intercept_vector = np.ones(1)
-        age_vector = context["Age"] / 100
+        age_vector = (context["Age"] - 32) / 10
         language_vector = Agent.one_one_array(len(Agent.LANGUAGES), Agent.LANGUAGES.index(context["Language"]))
         referer_vector = Agent.one_one_array(len(Agent.REFERES), Agent.REFERES.index(context["Referer"]))
         agent_vector = Agent.one_one_array(len(Agent.AGENTS), Agent.AGENTS.index(context["Agent"]))
         return np.hstack((intercept_vector, age_vector, language_vector, referer_vector, agent_vector))
+
+    @staticmethod
+    def vector_str():
+        return [x for l in [["Intercept", "Age"], Agent.LANGUAGES, Agent.REFERES, Agent.AGENTS, Agent.HEADERS, Agent.ADTYPES,
+                  Agent.COLORS, Agent.PRODUCTIDS, ["Price"]] for x in l]
 
 
 class RandomAgent(Agent):
@@ -278,80 +284,78 @@ class NaiveLogisticAgent(Agent):
         return "Online Logistic Regression with betas: " + str(formated_list)
 
 
-class BayesianRegressionAgent(Agent):
+class RegRegressionAgent(Agent):
 
-    def __init__(self, name, saveable=None, alpha=0.001, beta=1/100):
+    def __init__(self, name, saveable=None):
         super().__init__(name, saveable)
-        self.alpha = alpha
-        self.beta = beta
-        self.mat_action, self.action_values, self.prices = Agent.generate_action_matrix()
-        self.mean = None
-        self.sigma = None
+        self.model = SGDRegressor(warm_start=True, penalty='l1', alpha=1e-4, fit_intercept=False, eta0=0.01, power_t=1/3)
 
-        self.predictors = None
-        self.last_vec_action = None
         self.last_vec_context = None
+        self.last_vec_action = None
 
-    def from_saveable(self, saveable):
-        pass
+        self.count = 0
+        self.coefs = []
+
+        self.action_mat, self.action_values, self.prices = Agent.generate_action_matrix()
 
     def to_saveable(self):
         pass
 
+    def from_saveable(self, saveable):
+        pass
+
+    def input_model(self, predictors):
+        if len(predictors.shape) == 1:
+            predictors = predictors.reshape((1, -1))
+        ret = np.vstack((predictors.T, predictors[:, 1] ** 2, predictors[:, -1] ** 2)).T
+        return ret
+
     def decide(self, context):
         self.last_vec_context = Agent.context_to_vector(context)
-        mat_context = np.repeat(self.last_vec_context.reshape((1, -1)), self.mat_action.shape[0], 0)
-        self.predictors = np.hstack((mat_context, self.mat_action))
-        big_theta = BayesianRegressionAgent.design_function(self.predictors)
 
-        if self.mean is None:
-            self.mean = np.zeros((big_theta.shape[1], 1))
-            self.var_inv = np.diag(np.ones(big_theta.shape[1]) * self.alpha)
+        context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.action_mat.shape[0], 0)
+        predictors = np.hstack((context_predictors, self.action_mat))
+        X = self.input_model(predictors)
 
-        # Random action
-        header = random.choice(Agent.HEADERS)
-        adtype = random.choice(Agent.ADTYPES)
-        color = random.choice(Agent.COLORS)
-        product_id = random.choice(Agent.PRODUCTIDS)
-        price = random.choice(Agent.PRICES)
-        self.last_action = {"header": header, "adtype": adtype, "color": color, "productid": product_id, "price": price}
+        if hasattr(self.model, 'intercept_'):
+            y = self.model.predict(X)
+            y = (y + np.min(y)) ** 2
+            plt.figure(2)
+            plt.clf()
+            plt.ion()
+            plt.plot(y,'*')
+            if np.sum(y) > 0:
+                y /= np.sum(y)
+                action_id = np.where(np.cumsum(y) > random.random())[0][0]
+                self.last_action = self.action_values[action_id]
+                self.last_vec_action = Agent.action_to_vector(self.last_action)
+                return self.last_action
+
+        self.last_action = random.choice(self.action_values)
         self.last_vec_action = Agent.action_to_vector(self.last_action)
-
-        self.plot()
 
         return self.last_action
 
     def feedback(self, result):
         super().feedback(result)
-        target = result["effect"]["Success"] * self.last_action["price"]
-        print(target)
-        predictor = np.hstack((self.last_vec_context, self.last_vec_action))
-        theta = BayesianRegressionAgent.design_function(predictor)
-        new_var_inv = self.var_inv + self.beta * theta.reshape((-1, 1)).dot(theta.reshape((1, -1)))
-        learn = self.beta * theta.reshape((-1, 1)) * target
-        self.mean = np.linalg.inv(new_var_inv).dot(self.var_inv.dot(self.mean.reshape((-1, 1)) + learn))
-        self.var_inv = new_var_inv
 
-    @staticmethod
-    def design_function(predictor):
-        return np.hstack((predictor, predictor**2))
+        predictor = np.hstack((self.last_vec_context, self.last_vec_action))
+        X = self.input_model(predictor)
+
+        self.model = self.model.partial_fit(X, np.array([self.last_reward]))
+
+        self.plot()
 
     def plot(self):
-        data = []
-        for i in range(1, 50):
-            vec_context = self.last_vec_context
-            # vec_context[1] = i / 100
-            predictor = np.hstack((vec_context, self.last_vec_action))
-            price_predictor = predictor
-            price_predictor[-1] = i / 50.
-            theta = BayesianRegressionAgent.design_function(price_predictor)
-            mean_pred = self.mean.T.dot(theta.T)
-            var_pred = 1 / self.beta + np.sqrt(theta.T.dot(np.linalg.inv(self.var_inv).dot(theta)))
-            # std_pred = (self.mean + np.linalg.inv(self.var_inv).dot(np.ones(big_theta.shape))).dot(big_theta)
-            data.append([np.sum(mean_pred)-var_pred, np.sum(mean_pred), np.sum(mean_pred)+var_pred])
-        plt.cla()
-        plt.ion()
-        plt.plot(data)
-        # plt.ylim([-100, 100])
-        plt.draw()
-        plt.pause(0.001)
+        self.coefs.append(list(self.model.coef_))
+        self.count += 1
+        if self.count % 50 is 0:
+            plt.figure(1)
+            plt.cla()
+            plt.ion()
+            plt.plot(np.array(self.coefs))
+            vec_str = Agent.vector_str()
+            plt.legend(vec_str + ["Age**2", "Price**2"], 'southeast')
+            plt.ylim([-3, 3])
+            plt.draw()
+            plt.pause(0.0001)

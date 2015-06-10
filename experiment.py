@@ -7,7 +7,7 @@ import numpy as np
 
 from agents import GreedyAgent, RandomAgent, NaiveLogisticAgent
 from agents import MultiBetaAgent
-from agents import BayesianRegressionAgent
+from agents import RegRegressionAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 
@@ -73,8 +73,8 @@ if __name__ == "__main__":
         # log_agent = NaiveLogisticAgent(log_name)
         # exp_log = Experiment(log_agent, log_name, run_idx=[runid])
         # exp_log.start()
-        # Bayesian regression agent
-        bayesreg_name = "bayesreg_runid_" + str(runid).zfill(4)
-        bayesreg_agent = BayesianRegressionAgent(bayesreg_name)
-        exp_bayesreg = Experiment(bayesreg_agent, bayesreg_name, run_idx=[runid])
-        exp_bayesreg.run()
+        # Regularized regression agent
+        regreg_name = "regreg_runid_" + str(runid).zfill(4)
+        regreg_agent = RegRegressionAgent(regreg_name)
+        exp_regreg = Experiment(regreg_agent, regreg_name, run_idx=[runid])
+        exp_regreg.start()
