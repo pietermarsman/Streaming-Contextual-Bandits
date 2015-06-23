@@ -1,4 +1,5 @@
 import json
+from warnings import warn
 
 import requests
 
@@ -72,7 +73,12 @@ def propose_page(run_id, i, header=15, adtype="square", productid=10, price=10.,
 
     payload = {'teamid': TEAMID, 'teampw': TEAM_PASS, 'runid': run_id, 'i': i, 'header': 5, 'adtype': adtype,
                'color': color, 'productid': productid, 'price': price}
-    ret = requests.get(PROPOSE_PAGE_URL, params=payload)
+    ret = None
+    while not ret:
+        try:
+            ret = requests.get(PROPOSE_PAGE_URL, params=payload)
+        except Exception as e:
+            warn(e)
     ret_dict = json.loads(ret.text)
     check_propose_result(ret_dict)
 

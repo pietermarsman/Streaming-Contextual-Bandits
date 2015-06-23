@@ -3,15 +3,16 @@ import random
 import sys
 
 import numpy as np
+from scipy.special._ufuncs import expit
 from sklearn.linear_model import SGDRegressor
 import matplotlib.pyplot as plt
 
-from misc import logit, plot_continuously, create_key
+from misc import plot_continuously, create_key, add_dict
 
 
 
 # Super action: {'adtype': 'skyscraper', 'productid': 10, 'header': 5, 'color': 'green', 'price': 49.0}
-
+from regression import lr_predict, lsr_update
 
 __author__ = 'pieter'
 
@@ -26,7 +27,7 @@ class Agent(metaclass=ABCMeta):
     ADTYPES = ["skyscraper", "square", "banner"]
     COLORS = ["green", "blue", "red", "black", "white"]
     PRODUCTIDS = range(10, 25)
-    PRICES = np.arange(1.0, 50.0, 1.).tolist()
+    PRICES = np.arange(1.0, 50.0, 5.).tolist()
 
     LANGUAGES = ["EN", "GE", "NL"]
     REFERES = ["Google", "Bing", "NA"]
@@ -38,6 +39,7 @@ class Agent(metaclass=ABCMeta):
         self.last_success = None
         self.last_reward = None
         self.name = name
+        self.i = 0
 
     @abstractmethod
     def from_saveable(self, saveable):
@@ -51,6 +53,7 @@ class Agent(metaclass=ABCMeta):
         self.last_success = result["effect"]["Success"]
         self.last_reward = self.last_success * (self.last_action["price"] if self.last_action is not None else 1)
         self.cum_reward += self.last_reward
+        self.i += 1
 
     @abstractmethod
     def to_saveable(self):
@@ -262,7 +265,7 @@ class NaiveLogisticAgent(Agent):
         if self.betas is not None:
             context_predictors = np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0)
             predictors = np.hstack((context_predictors, self.action_mat))
-            p = logit(predictors.dot(self.betas.reshape((-1, 1))))
+            p = expit(predictors.dot(self.betas.reshape((-1, 1))))
             rewards = p * self.prices.reshape((-1, 1))
             norm_rewards = rewards / np.sum(rewards)
             actiond_id = np.where(np.cumsum(norm_rewards) > np.random.random())[0][0]
@@ -284,6 +287,106 @@ class NaiveLogisticAgent(Agent):
         tuple_list = list(zip(self.betas.tolist(), names))
         formated_list = ", ".join(list(map(lambda x: str(x[1]) + "={:.2f}".format(x[0]), tuple_list)))
         return "Online Logistic Regression with betas: " + str(formated_list)
+
+
+class ThompsonLogisticAgent(Agent):
+
+    def __init__(self, name, learnrate, regulizer, saveable=None):
+        super().__init__(name, saveable)
+        self.learnrate = learnrate
+        self.regulizer = regulizer
+        _, self.actions, _ = Agent.generate_action_matrix()
+        self.lrs = [ThompsonLogisticAgent.random_lr(self.actions) for i in range(100)]
+        self.last_context = None
+        self.from_saveable(saveable)
+
+    def decide(self, context):
+        self.last_context = context["context"]
+        lr = random.sample(self.lrs, 1)[0]
+        best_value = -1e100
+        self.last_action = None
+        for action in self.actions:
+            x = ThompsonLogisticAgent.design(self.last_context, action)
+            p = lr_predict(x, lr, self.i, self.learnrate, self.regulizer)
+            value = p * action['price']
+            if value > best_value:
+                best_value = value
+                self.last_action = action
+        return self.last_action
+
+    def feedback(self, result):
+        super().feedback(result)
+        x = ThompsonLogisticAgent.design(self.last_context, self.last_action)
+        for i in range(len(self.lrs)):
+            if random.random() > .5:
+                p = lr_predict(x, self.lrs[i], self.i, self.learnrate, self.regulizer)
+                self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate)
+                self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate)
+
+        # lr_values = self.map_lr()
+        # print(np.mean(lr_values['price']))
+        # keys = sorted(list(lr_values.keys()))
+        # values = list([lr_values[k] for k in keys])
+        # plt.ion()
+        # plt.cla()
+        # plt.boxplot(values)
+        # plt.xticks(range(1, len(lr_values)+1), keys, rotation='vertical')
+        # plt.draw()
+        # plt.pause(0.001)
+
+    def from_saveable(self, saveable):
+        if saveable is not None:
+            self.lrs = saveable['lrs']
+            self.learnrate = saveable['learnrate']
+            self.regulizer = saveable['regulizer']
+
+    def to_saveable(self):
+        return {'lrs': self.lrs, 'learnrate':self.learnrate, 'regulizer':self.regulizer}
+
+    def map_lr(self):
+        lr_values = dict()
+        for lr in self.lrs:
+            for key, value in lr.items():
+                add_dict(lr_values, key, [value])
+        return lr_values
+
+    @staticmethod
+    def design(context, action):
+        def price(p):
+            return (p - 25.) / 25.
+
+        def age(a):
+            return (a - 32.) / 32.
+
+        x = dict()
+        for k, v in action.items():
+            if k is 'price':
+                x[str(k)] = price(v)
+            else:
+                x[str(k) + '=' + str(v)] = 1
+        for ak, av in action.items():
+            for ck, cv in context.items():
+                if ak is 'price':
+                    if ck is 'age':
+                        x[str(ak) + '_' + str(ck)] = price(av) * age(cv)
+                    else:
+                        x[str(ak) + '_' + str(ck) + '=' + str(cv)] = price(av)
+                else:
+                    if ck is 'age':
+                        x[str(ak) + '=' + str(av) + '_' + str(ck)] = age(cv)
+                    else:
+                        x[str(ak) + '=' + str(av) + '_' + str(ck) + '=' + str(cv)] = 1
+
+        return x
+
+    @staticmethod
+    def random_lr(actions):
+        lr = {"intercept": 0.}
+        for action in actions:
+            x = ThompsonLogisticAgent.design({}, action)
+            for key in x:
+                lr[key] = (random.random() - .5)
+        return lr
 
 
 class RegRegressionAgent(Agent):
@@ -415,7 +518,7 @@ class NaiveBayesAgent(Agent):
             # noise = np.random.random((inp.shape[0], 1)) - .5
             vec = np.vectorize(lambda x: x + 6 * random.random() - 3.)
             logit_inp = vec(inp.dot(self.weights[cont_id, :]))
-            y += np.log(logit(logit_inp) + EPS)
+            y += np.log(expit(logit_inp) + EPS)
 
         for row_i in range(X.shape[0]):
             for binary_id in self.binary_idx:
