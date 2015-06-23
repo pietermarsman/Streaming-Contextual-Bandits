@@ -155,7 +155,7 @@ def plot_regret(run_data):
 
 for file in os.listdir(DIR):
     name = file[:-4]
-    if "multib" in name:
+    if "nb" in name:
         print("Processing: " + name)
         create_directory("stats")
         data = np.load(DIR + file).item()

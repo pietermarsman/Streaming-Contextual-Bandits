@@ -80,7 +80,7 @@ if __name__ == "__main__":
         # exp_regreg = Experiment(regreg_agent, regreg_name, run_idx=[runid])
         # exp_regreg.start()
         # Naive Bayesian agent
-        nb_name = "nb_runid_" + str(runid).zfill(4)
-        nb_agent = NaiveBayesAgent(nb_name)
-        exp_nb = Experiment(nb_agent, nb_name, run_idx=[runid])
-        exp_nb.start()
+        # nb_name = "nb_runid_" + str(runid).zfill(4)
+        # nb_agent = NaiveBayesAgent(nb_name)
+        # exp_nb = Experiment(nb_agent, nb_name, run_idx=[runid])
+        # exp_nb.start()

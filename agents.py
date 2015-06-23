@@ -1,12 +1,14 @@
 from abc import ABCMeta, abstractmethod
 import random
 import time
+import math
 
 import numpy as np
 from sklearn.linear_model import SGDRegressor
 import matplotlib.pyplot as plt
+import sys
 
-from misc import logit, plot_continuously
+from misc import logit, plot_continuously, create_key
 
 
 # Super action: {'adtype': 'skyscraper', 'productid': 10, 'header': 5, 'color': 'green', 'price': 49.0}
@@ -17,13 +19,15 @@ __author__ = 'pieter'
 # idea Thomson sampling for simple contextual bandit problems (Frank)
 # idea Gibs sampling for probit models (Frank)
 
+EPS = sys.float_info.epsilon
+
 
 class Agent(metaclass=ABCMeta):
     HEADERS = [5, 15, 35]
     ADTYPES = ["skyscraper", "square", "banner"]
     COLORS = ["green", "blue", "red", "black", "white"]
     PRODUCTIDS = range(10, 25)
-    PRICES = np.arange(1.0, 50.0, 10.).tolist()
+    PRICES = np.arange(1.0, 50.0, 1.).tolist()
 
     LANGUAGES = ["EN", "GE", "NL"]
     REFERES = ["Google", "Bing", "NA"]
@@ -274,13 +278,6 @@ class NaiveLogisticAgent(Agent):
         vector = np.hstack((self.last_context_vec, self.last_action_vec))
         self.streaming_lr(vector, np.array([self.last_success]))
 
-    def streaming_lr(self, x_t, y_t):
-        if self.betas is None:
-            self.betas = np.zeros(x_t.shape[0])
-        p = logit(self.betas.dot(x_t))
-        self.betas *= (1 - 2. * self.lam * self.mu)
-        self.betas += self.lam * (y_t - p) * x_t
-
     def __str__(self):
         names = [x for l in
                  [["Intercept", "Age"], Agent.LANGUAGES, Agent.REFERES, Agent.AGENTS, Agent.HEADERS, Agent.ADTYPES,
@@ -368,25 +365,26 @@ class RegRegressionAgent(Agent):
 
 
 class NaiveBayesAgent(Agent):
+
     def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
         super().__init__(name, saveable)
 
         self.lambda_ = lambda_
         self.mu = mu
 
-        self.names = Agent.vector_str()
-        self.num_features = len(self.names)
-        self.sucesses = np.ones(self.num_features)
-        self.failures = np.ones(self.num_features)
-        self.weights = np.ones((self.num_features, 2))
-
         self.mat_action, self.action_values, self.prices = Agent.generate_action_matrix()
         self.last_vec_context = None
         self.last_vec_action = None
 
-        self.binary_idx = range(0, self.num_features)
-        self.cont_idx = [1, -1]
-        self.binary_idx = [i for j, i in enumerate(self.binary_idx) if j not in self.cont_idx]
+        self.names = Agent.vector_str()
+        self.successes = np.ones(self.num_features()) * 5
+        self.failures = np.ones(self.num_features())
+        self.beta_calculations = dict()
+        self.weights = np.hstack((np.ones((self.num_features(), 1)) * -.5, np.zeros((self.num_features(), 1))))
+
+        self.binary_idx = range(self.num_features())
+        self.cont_idx = list(map(lambda x: x % self.num_features(), [-1, -2]))
+        self.binary_idx = [i for i in self.binary_idx if i not in self.cont_idx]
 
         self.count = -1
 
@@ -396,70 +394,70 @@ class NaiveBayesAgent(Agent):
     def from_saveable(self, saveable):
         pass
 
-    def input_model(self, predictors):
-        return predictors
+    def input_model(self, context, actions):
+        if len(context.shape) == 1:
+            context = context.reshape((1, -1))
+        if len(actions.shape) == 1:
+            actions = actions.reshape((1, -1))
+        return np.hstack((actions, actions[:, -1].reshape((-1, 1))**2))
+
+    def num_features(self):
+        return self.mat_action.shape[1] + 1
 
     def decide(self, context):
-        now = time.time()
         self.last_vec_context = Agent.context_to_vector(context)
 
         context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.mat_action.shape[0], 0)
-        predictors = np.hstack((context_predictors, self.mat_action))
-        X = self.input_model(predictors)
-        y = np.zeros(X.shape[0])
+        X = self.input_model(context_predictors, self.mat_action)
+        # y = expected success probability * price
+        y = np.log(X[:, -2] + EPS)
 
-        for row_i, row in enumerate(X):
+        for cont_id in self.cont_idx:
+            inp = np.hstack((np.zeros((X.shape[0], 1)), X[:, cont_id].reshape((-1, 1))))
+            # noise = np.random.random((inp.shape[0], 1)) - .5
+            vec = np.vectorize(lambda x: x + 6 * random.random() - 3.)
+            logit_inp = vec(inp.dot(self.weights[cont_id, :]))
+            y += np.log(logit(logit_inp) + EPS)
+
+        for row_i in range(X.shape[0]):
             for binary_id in self.binary_idx:
-                if row[binary_id] == 1:
-                    p = np.log(np.random.beta(self.sucesses[binary_id], self.failures[binary_id]))
-                    # print("Bin({}) = {}".format(binary_id, p))
-                    y[row_i] += p
-
-            for cont_id in self.cont_idx:
-                p = np.log(logit(self.weights[cont_id, :].dot(np.array([1., row[cont_id]]))))
-                # print("Cont({}) = {}".format(cont_id, p))
-                y[row_i] += p
-
-            y[row_i] += np.log(row[-1])
-
-        self.count += 1
-        if self.count % 50 == 0:
-            plot_continuously(plt.hist, 1, y)
-            plot_continuously(plt.plot, 2, self.sucesses)
-            plot_continuously(plt.plot, 2, self.failures, False)
-            plt.xticks(range(len(self.names)), self.names, rotation="vertical")
-            plot_continuously(plt.plot, 3, self.weights[self.cont_idx[0]])
-            plot_continuously(plt.plot, 3, self.weights[self.cont_idx[1]], False)
+                if X[row_i, binary_id] == 1:
+                    suc = self.successes[binary_id]
+                    fail = self.failures[binary_id]
+                    create_key(self.beta_calculations, suc, dict())
+                    if fail not in self.beta_calculations[suc]:
+                        self.beta_calculations[suc][fail] = np.log(np.random.beta(suc, fail) + EPS)
+                    y[row_i] += self.beta_calculations[suc][fail]
 
         best_id = np.argmax(y)
         self.last_action = self.action_values[best_id]
         self.last_vec_action = Agent.action_to_vector(self.last_action)
 
-        print("Duration decision: {}".format(time.time() - now))
         return self.last_action
 
     def feedback(self, result):
         super().feedback(result)
-        now = time.time()
 
-        predictor = np.hstack((self.last_vec_context, self.last_vec_action))
-        X = self.input_model(predictor)
+        X = self.input_model(self.last_vec_context, self.last_vec_action)
 
         for binary_id in self.binary_idx:
-            if X[binary_id] == 1:
-                self.sucesses[binary_id] += self.last_success == True
-                self.failures[binary_id] += self.last_success == False
+            if X[0, binary_id] == 1:
+                self.successes[binary_id] += self.last_success
+                self.failures[binary_id] += not self.last_success
 
         for cont_id in self.cont_idx:
-            x = np.array([1, X[cont_id]])
+            x = np.array([1, X[0, cont_id]])
             self.weights[cont_id, :] = self.streaming_lr(x, self.last_success, self.weights[cont_id, :],
                                                          self.lambda_, self.mu)
-        print("Duration feedback: {}".format(time.time() - now))
 
-    def streaming_lr(self, x_t, y_t, betas, lambda_, mu):
-        if betas is None:
-            betas = np.zeros(x_t.shape[0])
-        p = logit(betas.dot(x_t))
-        betas *= (1 - 2. * lambda_ * mu)
-        betas += lambda_ * (y_t - p) * x_t
-        return betas
+        self.count += 1
+        if self.count % 100 == 0:
+            plot_continuously(plt.plot, 2, self.successes)
+            plot_continuously(plt.plot, 2, self.failures, False)
+            plot_continuously(plt.plot, 2, self.successes / (self.successes + self.failures) * 100, False)
+            plt.xticks(range(self.num_features()), self.names[12:] + ["Price^2"], rotation="vertical")
+            for cont_id in self.cont_idx:
+                plot_continuously(plt.plot, 3, self.weights[cont_id, :], cont_id == self.cont_idx[0])
+            plt.legend(list(map(str, self.cont_idx)))
+            plt.draw()
+            plt.pause(0.0001)

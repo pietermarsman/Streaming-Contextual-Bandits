@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import matplotlib.pyplot as plt
 
 __author__ = 'pieter'
@@ -26,15 +25,9 @@ def flatten(list_of_lists):
     return [item for sublist in list_of_lists for item in sublist]
 
 
-def logit(x):
-    return 1. / (1. + np.exp(-x))
-
-
 def plot_continuously(func, fig, data, cla=True):
     plt.figure(fig)
     if cla:
         plt.cla()
     plt.ion()
     func(data)
-    plt.draw()
-    plt.pause(0.0001)
