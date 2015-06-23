@@ -1,9 +1,9 @@
 import os
+
 import numpy as np
 from matplotlib import pyplot as plt
 
 from misc import add_dict, create_key, create_directory, flatten
-
 
 __author__ = 'pieter'
 

@@ -1,5 +1,6 @@
-import requests
 import json
+
+import requests
 
 __author__ = 'pieter'
 
@@ -76,4 +77,3 @@ def propose_page(run_id, i, header=15, adtype="square", productid=10, price=10.,
     check_propose_result(ret_dict)
 
     return ret_dict
-

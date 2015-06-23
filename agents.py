@@ -1,14 +1,13 @@
 from abc import ABCMeta, abstractmethod
 import random
-import time
-import math
+import sys
 
 import numpy as np
 from sklearn.linear_model import SGDRegressor
 import matplotlib.pyplot as plt
-import sys
 
 from misc import logit, plot_continuously, create_key
+
 
 
 # Super action: {'adtype': 'skyscraper', 'productid': 10, 'header': 5, 'color': 'green', 'price': 49.0}
@@ -365,7 +364,6 @@ class RegRegressionAgent(Agent):
 
 
 class NaiveBayesAgent(Agent):
-
     def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
         super().__init__(name, saveable)
 
@@ -399,7 +397,7 @@ class NaiveBayesAgent(Agent):
             context = context.reshape((1, -1))
         if len(actions.shape) == 1:
             actions = actions.reshape((1, -1))
-        return np.hstack((actions, actions[:, -1].reshape((-1, 1))**2))
+        return np.hstack((actions, actions[:, -1].reshape((-1, 1)) ** 2))
 
     def num_features(self):
         return self.mat_action.shape[1] + 1

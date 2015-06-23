@@ -5,13 +5,8 @@ import datetime
 
 import numpy as np
 
-from agents import GreedyAgent, RandomAgent, NaiveLogisticAgent
-from agents import MultiBetaAgent
-from agents import RegRegressionAgent
-from agents import NaiveBayesAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
-
 
 __author__ = 'pieter'
 
@@ -47,8 +42,9 @@ class Experiment(threading.Thread):
         np.save('agents/' + time_str + self.agent.name, self.agent.to_saveable())
 
     def to_string(self, action, run_id, i, success):
-        return "runid={}, i={}, agent={}, reward={:.4f}, action={} {}".format(run_id, i, self.agent.name, self.agent.cum_reward / (i + 1), action,
-                                                                     success)
+        return "runid={}, i={}, agent={}, reward={:.4f}, action={} {}".format(run_id, i, self.agent.name,
+                                                                              self.agent.cum_reward / (i + 1), action,
+                                                                              success)
 
 
 if __name__ == "__main__":
