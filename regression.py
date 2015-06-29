@@ -1,6 +1,6 @@
-import random
 from scipy.special._ufuncs import expit
 import numpy as np
+
 from misc import add_dict
 
 __author__ = 'pieter'
@@ -29,7 +29,7 @@ def lr_predict(x, weights, i, learnrate, regulizer):
     """
     value = weights.get("intercept", 0)
     for key in x:
-        value += weights.get(key, 0) * x[key]
+        value += weights.get(key, 0.0) * x[key]
     value *= (1. - 2. * learnrate * regulizer) ** i
     return expit(value)
 

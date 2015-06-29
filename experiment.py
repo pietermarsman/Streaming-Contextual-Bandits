@@ -4,9 +4,9 @@ import time
 import datetime
 
 import numpy as np
+
 from agents import ThompsonLogisticAgent
 from agents import GreedyAgent
-
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 
@@ -26,14 +26,14 @@ class Experiment(threading.Thread):
 
     def run(self):
         for run_id in self.run_idx:
-            for i in range(self.MAX_I + 1):
-                context = get_context(run_id, i)
+            for j in range(self.MAX_I + 1):
+                context = get_context(run_id, j)
                 action = self.agent.decide(context)
-                result = propose_page(run_id, i, **action)
+                result = propose_page(run_id, j, **action)
                 self.agent.feedback(result)
                 add_dict(self.data, run_id, [{'context': context, 'action': action, 'result': result}])
                 success = "Success!" if result["effect"]["Success"] else ""
-                print(self.to_string(action, run_id, i, success))
+                print(self.to_string(action, run_id, j, success))
             self.save()
 
     def save(self):
@@ -51,7 +51,7 @@ class Experiment(threading.Thread):
 
 if __name__ == "__main__":
     for i in range(1):
-        runid = random.choice(range(10000))
+        runid = random.choice(range(9900))
         str_runid = str(runid).zfill(4)
         # Greedy agent
         greedy_name = "greedy_runid_" + str(runid).zfill(4)
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         # exp_nb.start()
         # Bootstrap Thompson sampling poor man's Bayes streaming logistic regression
         thomp_name = "thomp_runid_" + str_runid
-        thomp_agent = ThompsonLogisticAgent(thomp_name, 0.05, 1e-3)
+        thomp_agent = ThompsonLogisticAgent(thomp_name, 0.05, 1e-3, 200)
         exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
         exp_thomp.start()
 

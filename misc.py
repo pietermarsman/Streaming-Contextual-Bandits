@@ -11,10 +11,7 @@ def create_directory(dir):
 
 
 def add_dict(dict, key, value):
-    if key in dict:
-        dict[key] += value
-    else:
-        dict[key] = value
+    dict[key] = dict.get(key, type(value)()) + value
 
 
 def create_key(dict, key, default_value=None):

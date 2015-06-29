@@ -11,6 +11,7 @@ from misc import plot_continuously, create_key, add_dict
 
 
 
+
 # Super action: {'adtype': 'skyscraper', 'productid': 10, 'header': 5, 'color': 'green', 'price': 49.0}
 from regression import lr_predict, lsr_update
 
@@ -27,7 +28,7 @@ class Agent(metaclass=ABCMeta):
     ADTYPES = ["skyscraper", "square", "banner"]
     COLORS = ["green", "blue", "red", "black", "white"]
     PRODUCTIDS = range(10, 25)
-    PRICES = np.arange(1.0, 50.0, 5.).tolist()
+    PRICES = np.arange(1.0, 50.0, 1.).tolist()
 
     LANGUAGES = ["EN", "GE", "NL"]
     REFERES = ["Google", "Bing", "NA"]
@@ -290,13 +291,12 @@ class NaiveLogisticAgent(Agent):
 
 
 class ThompsonLogisticAgent(Agent):
-
-    def __init__(self, name, learnrate, regulizer, saveable=None):
+    def __init__(self, name, learnrate, regulizer, prior_n, saveable=None):
         super().__init__(name, saveable)
         self.learnrate = learnrate
         self.regulizer = regulizer
         _, self.actions, _ = Agent.generate_action_matrix()
-        self.lrs = [ThompsonLogisticAgent.random_lr(self.actions) for i in range(100)]
+        self.lrs = [{} for _ in range(prior_n)]
         self.last_context = None
         self.from_saveable(saveable)
 
@@ -305,7 +305,7 @@ class ThompsonLogisticAgent(Agent):
         lr = random.sample(self.lrs, 1)[0]
         best_value = -1e100
         self.last_action = None
-        for action in self.actions:
+        for action in random.sample(self.actions, 1000):
             x = ThompsonLogisticAgent.design(self.last_context, action)
             p = lr_predict(x, lr, self.i, self.learnrate, self.regulizer)
             value = p * action['price']
@@ -322,17 +322,6 @@ class ThompsonLogisticAgent(Agent):
                 p = lr_predict(x, self.lrs[i], self.i, self.learnrate, self.regulizer)
                 self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate)
                 self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate)
-
-        # lr_values = self.map_lr()
-        # print(np.mean(lr_values['price']))
-        # keys = sorted(list(lr_values.keys()))
-        # values = list([lr_values[k] for k in keys])
-        # plt.ion()
-        # plt.cla()
-        # plt.boxplot(values)
-        # plt.xticks(range(1, len(lr_values)+1), keys, rotation='vertical')
-        # plt.draw()
-        # plt.pause(0.001)
 
     def from_saveable(self, saveable):
         if saveable is not None:
@@ -358,35 +347,28 @@ class ThompsonLogisticAgent(Agent):
         def age(a):
             return (a - 32.) / 32.
 
-        x = dict()
-        for k, v in action.items():
-            if k is 'price':
-                x[str(k)] = price(v)
-            else:
-                x[str(k) + '=' + str(v)] = 1
-        for ak, av in action.items():
-            for ck, cv in context.items():
-                if ak is 'price':
-                    if ck is 'age':
-                        x[str(ak) + '_' + str(ck)] = price(av) * age(cv)
-                    else:
-                        x[str(ak) + '_' + str(ck) + '=' + str(cv)] = price(av)
-                else:
-                    if ck is 'age':
-                        x[str(ak) + '=' + str(av) + '_' + str(ck)] = age(cv)
-                    else:
-                        x[str(ak) + '=' + str(av) + '_' + str(ck) + '=' + str(cv)] = 1
-
+        temp = {}
+        if context is not None:
+            temp.update(context)
+        temp.update(action)
+        temp['price'] = price(temp['price'])
+        if context is not None:
+            temp['Age'] = age(temp['Age']) \
+ \
+        x = {}
+        done = []
+        names = {}
+        for k1, v1 in temp.items():
+            name1 = "%s=%s" % (k1, str(v1))
+            value1 = v1 if type(v1) == float else 1
+            x[name1] = value1
+            for k2, v2 in temp.items():
+                if k2 not in done:
+                    name2 = "%s=%s" % (k2, str(v2))
+                    value2 = v2 if type(v2) == float else 1
+                    x[name1 + name2] = value1 * value2
+            done.append(k1)
         return x
-
-    @staticmethod
-    def random_lr(actions):
-        lr = {"intercept": 0.}
-        for action in actions:
-            x = ThompsonLogisticAgent.design({}, action)
-            for key in x:
-                lr[key] = (random.random() - .5)
-        return lr
 
 
 class RegRegressionAgent(Agent):
