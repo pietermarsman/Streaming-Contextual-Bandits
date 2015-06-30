@@ -395,91 +395,91 @@ class RegRegressionAgent(Agent):
             plt.pause(0.0001)
 
 
-class NaiveBayesAgent(Agent):
-    def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
-        super().__init__(name, saveable)
-
-        self.lambda_ = lambda_
-        self.mu = mu
-
-        self.mat_action, self.action_values, self.prices = Agent.generate_action_matrix()
-        self.last_vec_context = None
-        self.last_vec_action = None
-
-        self.names = Agent.vector_str()
-        self.successes = np.ones(self.num_features()) * 5
-        self.failures = np.ones(self.num_features())
-        self.beta_calculations = dict()
-        self.weights = np.hstack((np.ones((self.num_features(), 1)) * -.5, np.zeros((self.num_features(), 1))))
-
-        self.binary_idx = range(self.num_features())
-        self.cont_idx = list(map(lambda x: x % self.num_features(), [-1, -2]))
-        self.binary_idx = [i for i in self.binary_idx if i not in self.cont_idx]
-
-        self.count = -1
-
-    def to_saveable(self):
-        pass
-
-    def from_saveable(self, saveable):
-        pass
-
-    def input_model(self, context, actions):
-        if len(context.shape) == 1:
-            context = context.reshape((1, -1))
-        if len(actions.shape) == 1:
-            actions = actions.reshape((1, -1))
-        return np.hstack((actions, actions[:, -1].reshape((-1, 1)) ** 2))
-
-    def num_features(self):
-        return self.mat_action.shape[1] + 1
-
-    def decide(self, context):
-        self.last_vec_context = Agent.context_to_vector(context)
-
-        context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.mat_action.shape[0], 0)
-        X = self.input_model(context_predictors, self.mat_action)
-        # y = expected success probability * price
-        y = np.log(X[:, -2] + EPS)
-
-        for cont_id in self.cont_idx:
-            inp = np.hstack((np.zeros((X.shape[0], 1)), X[:, cont_id].reshape((-1, 1))))
-            # noise = np.random.random((inp.shape[0], 1)) - .5
-            vec = np.vectorize(lambda x: x + 6 * random.random() - 3.)
-            logit_inp = vec(inp.dot(self.weights[cont_id, :]))
-            y += np.log(expit(logit_inp) + EPS)
-
-        for row_i in range(X.shape[0]):
-            for binary_id in self.binary_idx:
-                if X[row_i, binary_id] == 1:
-                    suc = self.successes[binary_id]
-                    fail = self.failures[binary_id]
-                    create_key(self.beta_calculations, suc, dict())
-                    if fail not in self.beta_calculations[suc]:
-                        self.beta_calculations[suc][fail] = np.log(np.random.beta(suc, fail) + EPS)
-                    y[row_i] += self.beta_calculations[suc][fail]
-
-        best_id = np.argmax(y)
-        self.last_action = self.action_values[best_id]
-        self.last_vec_action = Agent.action_to_vector(self.last_action)
-
-        return self.last_action
-
-    def feedback(self, result):
-        super().feedback(result)
-
-        X = self.input_model(self.last_vec_context, self.last_vec_action)
-
-        for binary_id in self.binary_idx:
-            if X[0, binary_id] == 1:
-                self.successes[binary_id] += self.last_success
-                self.failures[binary_id] += not self.last_success
-
-        for cont_id in self.cont_idx:
-            x = np.array([1, X[0, cont_id]])
-            y = vec(inp.dot(self.weights[cont_id, :]))
-            self.weights[cont_id, :] = regression.streaming_lr(self.last_success, x, self.weights[cont_id, :],
-                                                         self.lambda_, self.mu)
+# class NaiveBayesAgent(Agent):
+#     def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
+#         super().__init__(name, saveable)
+#
+#         self.lambda_ = lambda_
+#         self.mu = mu
+#
+#         self.mat_action, self.action_values, self.prices = Agent.generate_action_matrix()
+#         self.last_vec_context = None
+#         self.last_vec_action = None
+#
+#         self.names = Agent.vector_str()
+#         self.successes = np.ones(self.num_features()) * 5
+#         self.failures = np.ones(self.num_features())
+#         self.beta_calculations = dict()
+#         self.weights = np.hstack((np.ones((self.num_features(), 1)) * -.5, np.zeros((self.num_features(), 1))))
+#
+#         self.binary_idx = range(self.num_features())
+#         self.cont_idx = list(map(lambda x: x % self.num_features(), [-1, -2]))
+#         self.binary_idx = [i for i in self.binary_idx if i not in self.cont_idx]
+#
+#         self.count = -1
+#
+#     def to_saveable(self):
+#         pass
+#
+#     def from_saveable(self, saveable):
+#         pass
+#
+#     def input_model(self, context, actions):
+#         if len(context.shape) == 1:
+#             context = context.reshape((1, -1))
+#         if len(actions.shape) == 1:
+#             actions = actions.reshape((1, -1))
+#         return np.hstack((actions, actions[:, -1].reshape((-1, 1)) ** 2))
+#
+#     def num_features(self):
+#         return self.mat_action.shape[1] + 1
+#
+#     def decide(self, context):
+#         self.last_vec_context = Agent.context_to_vector(context)
+#
+#         context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.mat_action.shape[0], 0)
+#         X = self.input_model(context_predictors, self.mat_action)
+#         # y = expected success probability * price
+#         y = np.log(X[:, -2] + EPS)
+#
+#         for cont_id in self.cont_idx:
+#             inp = np.hstack((np.zeros((X.shape[0], 1)), X[:, cont_id].reshape((-1, 1))))
+#             # noise = np.random.random((inp.shape[0], 1)) - .5
+#             vec = np.vectorize(lambda x: x + 6 * random.random() - 3.)
+#             logit_inp = vec(inp.dot(self.weights[cont_id, :]))
+#             y += np.log(expit(logit_inp) + EPS)
+#
+#         for row_i in range(X.shape[0]):
+#             for binary_id in self.binary_idx:
+#                 if X[row_i, binary_id] == 1:
+#                     suc = self.successes[binary_id]
+#                     fail = self.failures[binary_id]
+#                     create_key(self.beta_calculations, suc, dict())
+#                     if fail not in self.beta_calculations[suc]:
+#                         self.beta_calculations[suc][fail] = np.log(np.random.beta(suc, fail) + EPS)
+#                     y[row_i] += self.beta_calculations[suc][fail]
+#
+#         best_id = np.argmax(y)
+#         self.last_action = self.action_values[best_id]
+#         self.last_vec_action = Agent.action_to_vector(self.last_action)
+#
+#         return self.last_action
+#
+#     def feedback(self, result):
+#         super().feedback(result)
+#
+#         X = self.input_model(self.last_vec_context, self.last_vec_action)
+#
+#         for binary_id in self.binary_idx:
+#             if X[0, binary_id] == 1:
+#                 self.successes[binary_id] += self.last_success
+#                 self.failures[binary_id] += not self.last_success
+#
+#         for cont_id in self.cont_idx:
+#             x = np.array([1, X[0, cont_id]])
+#             y = vec(inp.dot(self.weights[cont_id, :]))
+#             self.weights[cont_id, :] = regression.streaming_lr(self.last_success, x, self.weights[cont_id, :],
+#                                                          self.lambda_, self.mu)
 
         # self.count += 1
         # if self.count % 100 == 0:
