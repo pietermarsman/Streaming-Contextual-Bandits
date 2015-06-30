@@ -7,9 +7,7 @@ import numpy as np
 
 from agents import ThompsonLogisticAgent
 from agents import GreedyAgent
-# from agents import RegRegressionAgent
 from agents import MultiBetaAgent
-from agents import RandomAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
 import matplotlib.pyplot as plt
@@ -57,7 +55,6 @@ class Experiment(threading.Thread):
 
 if __name__ == "__main__":
     experiments = []
-    Experiment.MAX_I = 10
     for i in range(1):
         runid = random.choice(range(9900))
         str_runid = str(runid).zfill(4)
@@ -79,11 +76,11 @@ if __name__ == "__main__":
         experiments.append(exp_multib)
         exp_multib.start()
         # Regularized regression agent
-        regreg_name = "regreg_runid_" + str(runid).zfill(4)
-        regreg_agent = RegRegressionAgent(regreg_name)
-        exp_regreg = Experiment(regreg_agent, regreg_name, run_idx=[runid])
-        experiments.append(exp_regreg)
-        exp_regreg.start()
+        # regreg_name = "regreg_runid_" + str(runid).zfill(4)
+        # regreg_agent = RegRegressionAgent(regreg_name)
+        # exp_regreg = Experiment(regreg_agent, regreg_name, run_idx=[runid])
+        # experiments.append(exp_regreg)
+        # exp_regreg.start()
         # Naive Bayesian agent
         # nb_name = "nb_runid_" + str(runid).zfill(4)
         # nb_agent = NaiveBayesAgent(nb_name)
