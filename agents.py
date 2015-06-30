@@ -1,6 +1,7 @@
 from abc import ABCMeta, abstractmethod
 import random
 import sys
+import threading
 
 import numpy as np
 from scipy.special._ufuncs import expit
@@ -14,6 +15,7 @@ from misc import plot_continuously, create_key, add_dict
 
 # Super action: {'adtype': 'skyscraper', 'productid': 10, 'header': 5, 'color': 'green', 'price': 49.0}
 from regression import lr_predict, lsr_update
+import regression
 
 __author__ = 'pieter'
 
@@ -28,7 +30,7 @@ class Agent(metaclass=ABCMeta):
     ADTYPES = ["skyscraper", "square", "banner"]
     COLORS = ["green", "blue", "red", "black", "white"]
     PRODUCTIDS = range(10, 25)
-    PRICES = np.arange(1.0, 50.0, 1.).tolist()
+    PRICES = np.arange(1.0, 50.0, 5.).tolist()
 
     LANGUAGES = ["EN", "GE", "NL"]
     REFERES = ["Google", "Bing", "NA"]
@@ -228,76 +230,16 @@ class MultiBetaAgent(Agent):
             self.successes[key][self.last_choice[key]] += self.last_success
 
 
-class NaiveLogisticAgent(Agent):
-    def __init__(self, name, saveable=None, lambda_=0.05, mu=0.0):
-        """
-        Logistic agent fitting the function y = logit(Betas * x). y is wheter or not the experiment is a succes. Betas
-        are weights for the input variables. x are the input variables; both context and action values. The best action
-        is chosen respectively to the expected reward y * price.
-
-        :param name: of the agent
-        :param saveable: possible saved instance of the agent
-        :param lambda_: step size
-        :param mu: regularization coefficient
-        :return:
-        """
-        super().__init__(name, saveable)
-        # Saving data for plotting
-        self.success_pred = []
-        self.failure_pred = []
-        # Used for logistic regression
-        self.last_context_vec = None
-        self.last_action_vec = None
-        self.betas = None
-        self.lam = lambda_
-        self.mu = mu
-        # Generating all possible actions in advance
-        self.action_mat, self.action_values, self.prices = Agent.generate_action_matrix()
-
-    def from_saveable(self, saveable):
-        self.betas = saveable["betas"]
-
-    def to_saveable(self):
-        return {"betas": self.betas}
-
-    def decide(self, context):
-        self.last_context_vec = self.context_to_vector(context)
-
-        if self.betas is not None:
-            context_predictors = np.repeat(self.last_context_vec.reshape((1, -1)), self.action_mat.shape[0], 0)
-            predictors = np.hstack((context_predictors, self.action_mat))
-            p = expit(predictors.dot(self.betas.reshape((-1, 1))))
-            rewards = p * self.prices.reshape((-1, 1))
-            norm_rewards = rewards / np.sum(rewards)
-            actiond_id = np.where(np.cumsum(norm_rewards) > np.random.random())[0][0]
-            self.last_action = self.action_values[actiond_id]
-        else:
-            self.last_action = random.choice(self.action_values)
-        self.last_action_vec = self.action_to_vector(self.last_action)
-        return self.last_action
-
-    def feedback(self, result):
-        super().feedback(result)
-        vector = np.hstack((self.last_context_vec, self.last_action_vec))
-        self.streaming_lr(vector, np.array([self.last_success]))
-
-    def __str__(self):
-        names = [x for l in
-                 [["Intercept", "Age"], Agent.LANGUAGES, Agent.REFERES, Agent.AGENTS, Agent.HEADERS, Agent.ADTYPES,
-                  Agent.COLORS, Agent.PRODUCTIDS, ["Price"]] for x in l]
-        tuple_list = list(zip(self.betas.tolist(), names))
-        formated_list = ", ".join(list(map(lambda x: str(x[1]) + "={:.2f}".format(x[0]), tuple_list)))
-        return "Online Logistic Regression with betas: " + str(formated_list)
-
-
 class ThompsonLogisticAgent(Agent):
-    def __init__(self, name, learnrate, regulizer, prior_n, saveable=None):
+    def __init__(self, name, learnrate, regulizer, lr_n, action_n, saveable=None):
         super().__init__(name, saveable)
         self.learnrate = learnrate
         self.regulizer = regulizer
+        self.action_n = action_n
         _, self.actions, _ = Agent.generate_action_matrix()
-        self.lrs = [{} for _ in range(prior_n)]
+        self.lrs = [{} for _ in range(lr_n)]
         self.last_context = None
+        self.lrs_lock = threading.Lock()
         self.from_saveable(saveable)
 
     def decide(self, context):
@@ -305,13 +247,15 @@ class ThompsonLogisticAgent(Agent):
         lr = random.sample(self.lrs, 1)[0]
         best_value = -1e100
         self.last_action = None
-        for action in random.sample(self.actions, 1000):
-            x = ThompsonLogisticAgent.design(self.last_context, action)
-            p = lr_predict(x, lr, self.i, self.learnrate, self.regulizer)
-            value = p * action['price']
+        actions = random.sample(self.actions, self.action_n)
+        xs = map(lambda x: ThompsonLogisticAgent.design(self.last_context, x), actions)
+        for x_i, x in enumerate(xs):
+            # x = ThompsonLogisticAgent.design(self.last_context, action)
+            p = lr_predict(x, lr, self.i, self.learnrate, self.regulizer, regression.random_coef)
+            value = p * actions[x_i]['price']
             if value > best_value:
                 best_value = value
-                self.last_action = action
+                self.last_action = actions[x_i]
         return self.last_action
 
     def feedback(self, result):
@@ -319,25 +263,45 @@ class ThompsonLogisticAgent(Agent):
         x = ThompsonLogisticAgent.design(self.last_context, self.last_action)
         for i in range(len(self.lrs)):
             if random.random() > .5:
-                p = lr_predict(x, self.lrs[i], self.i, self.learnrate, self.regulizer)
-                self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate)
-                self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate)
+                p = lr_predict(x, self.lrs[i], self.i, self.learnrate, self.regulizer, regression.random_coef)
+                with self.lrs_lock:
+                    self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate, regression.random_coef)
+                    self.lrs[i] = lsr_update(self.last_success, p, x, self.lrs[i], self.learnrate, regression.random_coef)
 
     def from_saveable(self, saveable):
         if saveable is not None:
             self.lrs = saveable['lrs']
             self.learnrate = saveable['learnrate']
             self.regulizer = saveable['regulizer']
+            self.action_n = saveable['action_n']
 
     def to_saveable(self):
-        return {'lrs': self.lrs, 'learnrate':self.learnrate, 'regulizer':self.regulizer}
+        return {'lrs': self.lrs, 'learnrate':self.learnrate, 'regulizer':self.regulizer, 'action_n':self.action_n}
 
     def map_lr(self):
         lr_values = dict()
-        for lr in self.lrs:
-            for key, value in lr.items():
-                add_dict(lr_values, key, [value])
+        with self.lrs_lock:
+            for lr in self.lrs:
+                for key, value in lr.items():
+                    add_dict(lr_values, key, [value * (1. - 2. * self.learnrate * self.regulizer) ** self.i])
         return lr_values
+
+    def plot(self, include=None, exclude=None):
+        lr_values = self.map_lr()
+        if len(lr_values) > 0:
+            keys = sorted(lr_values.keys())
+            if include is not None:
+                keys = [k for k in keys if any([incl in k for incl in include])]
+            if exclude is not None:
+                keys = [k for k in keys if all([excl not in k for excl in exclude])]
+            plt.ion()
+            plt.cla()
+            plt.title("Iteration %d" % self.i)
+            plt.boxplot([lr_values[k] for k in keys], widths=0.5, showmeans=True)
+            plt.xticks(range(1, len(keys)), keys, rotation='vertical')
+            plt.subplots_adjust(left=0.05, right=1.0, top=0.95, bottom=0.3)
+            plt.draw()
+            plt.pause(0.001)
 
     @staticmethod
     def design(context, action):
@@ -353,21 +317,21 @@ class ThompsonLogisticAgent(Agent):
         temp.update(action)
         temp['price'] = price(temp['price'])
         if context is not None:
-            temp['Age'] = age(temp['Age']) \
- \
+            temp['Age'] = age(temp['Age'])
         x = {}
-        done = []
-        names = {}
+        done = {}
         for k1, v1 in temp.items():
-            name1 = "%s=%s" % (k1, str(v1))
-            value1 = v1 if type(v1) == float else 1
+            cont1 = type(v1) == float
+            name1 = str(k1) if cont1 else "%s=%s" % (k1, str(v1))
+            value1 = v1 if cont1 else 1
             x[name1] = value1
             for k2, v2 in temp.items():
                 if k2 not in done:
-                    name2 = "%s=%s" % (k2, str(v2))
-                    value2 = v2 if type(v2) == float else 1
-                    x[name1 + name2] = value1 * value2
-            done.append(k1)
+                    cont2 = type(v2) == float
+                    name2 = str(k2) if cont2 else "%s=%s" % (k2, str(v2))
+                    value2 = v2 if cont2 else 1
+                    x["%s_%s" % (name1, name2)] = value1 * value2
+            done[k1] = True
         return x
 
 
@@ -403,21 +367,6 @@ class RegRegressionAgent(Agent):
         context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.action_mat.shape[0], 0)
         predictors = np.hstack((context_predictors, self.action_mat))
         X = self.input_model(predictors)
-
-        if hasattr(self.model, 'intercept_'):
-            y = self.model.predict(X)
-            y = (y + np.min(y)) ** 2
-            plt.figure(2)
-            plt.clf()
-            plt.ion()
-            plt.plot(y, '*')
-            if np.sum(y) > 0:
-                y /= np.sum(y)
-                action_id = np.where(np.cumsum(y) > random.random())[0][0]
-                self.last_action = self.action_values[action_id]
-                self.last_vec_action = Agent.action_to_vector(self.last_action)
-                return self.last_action
-
         self.last_action = random.choice(self.action_values)
         self.last_vec_action = Agent.action_to_vector(self.last_action)
 
@@ -430,8 +379,6 @@ class RegRegressionAgent(Agent):
         X = self.input_model(predictor)
 
         self.model = self.model.partial_fit(X, np.array([self.last_reward]))
-
-        self.plot()
 
     def plot(self):
         self.coefs.append(list(self.model.coef_))
@@ -530,17 +477,18 @@ class NaiveBayesAgent(Agent):
 
         for cont_id in self.cont_idx:
             x = np.array([1, X[0, cont_id]])
-            self.weights[cont_id, :] = self.streaming_lr(x, self.last_success, self.weights[cont_id, :],
+            y = vec(inp.dot(self.weights[cont_id, :]))
+            self.weights[cont_id, :] = regression.streaming_lr(self.last_success, x, self.weights[cont_id, :],
                                                          self.lambda_, self.mu)
 
-        self.count += 1
-        if self.count % 100 == 0:
-            plot_continuously(plt.plot, 2, self.successes)
-            plot_continuously(plt.plot, 2, self.failures, False)
-            plot_continuously(plt.plot, 2, self.successes / (self.successes + self.failures) * 100, False)
-            plt.xticks(range(self.num_features()), self.names[12:] + ["Price^2"], rotation="vertical")
-            for cont_id in self.cont_idx:
-                plot_continuously(plt.plot, 3, self.weights[cont_id, :], cont_id == self.cont_idx[0])
-            plt.legend(list(map(str, self.cont_idx)))
-            plt.draw()
-            plt.pause(0.0001)
+        # self.count += 1
+        # if self.count % 100 == 0:
+        #     plot_continuously(plt.plot, 2, self.successes)
+        #     plot_continuously(plt.plot, 2, self.failures, False)
+        #     plot_continuously(plt.plot, 2, self.successes / (self.successes + self.failures) * 100, False)
+        #     plt.xticks(range(self.num_features()), self.names[12:] + ["Price^2"], rotation="vertical")
+        #     for cont_id in self.cont_idx:
+        #         plot_continuously(plt.plot, 3, self.weights[cont_id, :], cont_id == self.cont_idx[0])
+        #     plt.legend(list(map(str, self.cont_idx)))
+        #     plt.draw()
+        #     plt.pause(0.0001)

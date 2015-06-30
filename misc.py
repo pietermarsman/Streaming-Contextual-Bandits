@@ -10,8 +10,11 @@ def create_directory(dir):
         os.makedirs(dir)
 
 
-def add_dict(dict, key, value):
-    dict[key] = dict.get(key, type(value)()) + value
+def add_dict(dict, key, value, default_value=None):
+    if default_value is None:
+        dict[key] = dict.get(key, type(value)()) + value
+    else:
+        dict[key] = dict.get(key, default_value) + value
 
 
 def create_key(dict, key, default_value=None):

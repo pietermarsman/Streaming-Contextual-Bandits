@@ -7,8 +7,13 @@ import numpy as np
 
 from agents import ThompsonLogisticAgent
 from agents import GreedyAgent
+from agents import RegRegressionAgent
+from agents import MultiBetaAgent
+from agents import RandomAgent
+from agents import NaiveBayesAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
+import matplotlib.pyplot as plt
 
 __author__ = 'pieter'
 
@@ -31,7 +36,7 @@ class Experiment(threading.Thread):
                 action = self.agent.decide(context)
                 result = propose_page(run_id, j, **action)
                 self.agent.feedback(result)
-                add_dict(self.data, run_id, [{'context': context, 'action': action, 'result': result}])
+                add_dict(self.data, run_id, [{'context': context, 'action': action, 'result': result}], [])
                 success = "Success!" if result["effect"]["Success"] else ""
                 print(self.to_string(action, run_id, j, success))
             self.save()
@@ -68,11 +73,6 @@ if __name__ == "__main__":
         # multib_agent = MultiBetaAgent(multib_name)
         # exp_multib = Experiment(multib_agent, multib_name, run_idx=[runid])
         # exp_multib.start()
-        # Logistic agent
-        # log_name = "log_runid_" + str(runid).zfill(4)
-        # log_agent = NaiveLogisticAgent(log_name)
-        # exp_log = Experiment(log_agent, log_name, run_idx=[runid])
-        # exp_log.start()
         # Regularized regression agent
         # regreg_name = "regreg_runid_" + str(runid).zfill(4)
         # regreg_agent = RegRegressionAgent(regreg_name)
@@ -84,8 +84,14 @@ if __name__ == "__main__":
         # exp_nb = Experiment(nb_agent, nb_name, run_idx=[runid])
         # exp_nb.start()
         # Bootstrap Thompson sampling poor man's Bayes streaming logistic regression
-        thomp_name = "thomp_runid_" + str_runid
-        thomp_agent = ThompsonLogisticAgent(thomp_name, 0.05, 1e-3, 200)
+        thomp_name = "thomp_runid_%s" % (str_runid)
+        thomp_agent = ThompsonLogisticAgent(thomp_name, 0.01, 1e-3, 200, 100)
         exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
         exp_thomp.start()
+    while True:
+        plt.figure(1)
+        thomp_agent.plot(include=['Age', 'price'], exclude=['ID', 'Agent'])
+        plt.figure(2)
+        thomp_agent.plot(exclude=['_', 'ID'])
+
 

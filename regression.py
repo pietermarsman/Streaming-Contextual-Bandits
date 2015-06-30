@@ -1,3 +1,4 @@
+import random
 from scipy.special._ufuncs import expit
 import numpy as np
 
@@ -5,6 +6,7 @@ from misc import add_dict
 
 __author__ = 'pieter'
 
+random_coef = lambda: (random.random() - .5) * 0.1
 
 def streaming_lr(t, x_t, y_t, betas, alpha, mu, invscaling=False):
     if betas is None:
@@ -19,7 +21,7 @@ def streaming_lr(t, x_t, y_t, betas, alpha, mu, invscaling=False):
     return betas, alpha
 
 
-def lr_predict(x, weights, i, learnrate, regulizer):
+def lr_predict(x, weights, i, learnrate, regulizer, default_value=None):
     """
     Predict value using logistic regression
     :param t:
@@ -27,14 +29,16 @@ def lr_predict(x, weights, i, learnrate, regulizer):
     :param param:
     :return:
     """
-    value = weights.get("intercept", 0)
+    if default_value is None:
+        default_value = lambda: None
+    value = weights.get("intercept", default_value())
     for key in x:
-        value += weights.get(key, 0.0) * x[key]
+        value += weights.get(key, default_value()) * x[key]
     value *= (1. - 2. * learnrate * regulizer) ** i
     return expit(value)
 
 
-def lsr_update(t, y, x, weights, learnrate):
+def lsr_update(t, y, x, weights, learnrate, default_value=None):
     """
     Update values using logistic streaming regression
     :param t: target
@@ -43,8 +47,10 @@ def lsr_update(t, y, x, weights, learnrate):
     :param weights:
     :return:
     """
+    if default_value is None:
+        default_value = lambda: None
     error = t - y
-    add_dict(weights, "intercept", learnrate * error)
+    add_dict(weights, "intercept", learnrate * error, default_value())
     for key in x:
-        add_dict(weights, key, learnrate * error * x[key])
+        add_dict(weights, key, learnrate * error * x[key], default_value())
     return weights
