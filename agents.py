@@ -5,7 +5,7 @@ import threading
 
 import numpy as np
 from scipy.special._ufuncs import expit
-from sklearn.linear_model import SGDRegressor
+# from sklearn.linear_model import SGDRegressor
 import matplotlib.pyplot as plt
 
 from misc import plot_continuously, create_key, add_dict
@@ -335,64 +335,64 @@ class ThompsonLogisticAgent(Agent):
         return x
 
 
-class RegRegressionAgent(Agent):
-    def __init__(self, name, saveable=None):
-        super().__init__(name, saveable)
-        self.model = SGDRegressor(warm_start=True, penalty='l1', alpha=1e-4, fit_intercept=False, eta0=0.01,
-                                  power_t=1 / 3)
+# class RegRegressionAgent(Agent):
+#     def __init__(self, name, saveable=None):
+#         super().__init__(name, saveable)
+#         self.model = SGDRegressor(warm_start=True, penalty='l1', alpha=1e-4, fit_intercept=False, eta0=0.01,
+#                                   power_t=1 / 3)
 
-        self.last_vec_context = None
-        self.last_vec_action = None
+#         self.last_vec_context = None
+#         self.last_vec_action = None
 
-        self.count = 0
-        self.coefs = []
+#         self.count = 0
+#         self.coefs = []
 
-        self.action_mat, self.action_values, self.prices = Agent.generate_action_matrix()
+#         self.action_mat, self.action_values, self.prices = Agent.generate_action_matrix()
 
-    def to_saveable(self):
-        pass
+#     def to_saveable(self):
+#         pass
 
-    def from_saveable(self, saveable):
-        pass
+#     def from_saveable(self, saveable):
+#         pass
 
-    def input_model(self, predictors):
-        if len(predictors.shape) == 1:
-            predictors = predictors.reshape((1, -1))
-        ret = np.vstack((predictors.T, predictors[:, 1] ** 2, predictors[:, -1] ** 2)).T
-        return ret
+#     def input_model(self, predictors):
+#         if len(predictors.shape) == 1:
+#             predictors = predictors.reshape((1, -1))
+#         ret = np.vstack((predictors.T, predictors[:, 1] ** 2, predictors[:, -1] ** 2)).T
+#         return ret
 
-    def decide(self, context):
-        self.last_vec_context = Agent.context_to_vector(context)
+#     def decide(self, context):
+#         self.last_vec_context = Agent.context_to_vector(context)
 
-        context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.action_mat.shape[0], 0)
-        predictors = np.hstack((context_predictors, self.action_mat))
-        X = self.input_model(predictors)
-        self.last_action = random.choice(self.action_values)
-        self.last_vec_action = Agent.action_to_vector(self.last_action)
+#         context_predictors = np.repeat(self.last_vec_context.reshape((1, -1)), self.action_mat.shape[0], 0)
+#         predictors = np.hstack((context_predictors, self.action_mat))
+#         X = self.input_model(predictors)
+#         self.last_action = random.choice(self.action_values)
+#         self.last_vec_action = Agent.action_to_vector(self.last_action)
 
-        return self.last_action
+#         return self.last_action
 
-    def feedback(self, result):
-        super().feedback(result)
+#     def feedback(self, result):
+#         super().feedback(result)
 
-        predictor = np.hstack((self.last_vec_context, self.last_vec_action))
-        X = self.input_model(predictor)
+#         predictor = np.hstack((self.last_vec_context, self.last_vec_action))
+#         X = self.input_model(predictor)
 
-        self.model = self.model.partial_fit(X, np.array([self.last_reward]))
+#         self.model = self.model.partial_fit(X, np.array([self.last_reward]))
 
-    def plot(self):
-        self.coefs.append(list(self.model.coef_))
-        self.count += 1
-        if self.count % 50 is 0:
-            plt.figure(1)
-            plt.cla()
-            plt.ion()
-            plt.plot(np.array(self.coefs))
-            vec_str = Agent.vector_str()
-            plt.legend(vec_str + ["Age**2", "Price**2"], 'southeast')
-            plt.ylim([-3, 3])
-            plt.draw()
-            plt.pause(0.0001)
+#     def plot(self):
+#         self.coefs.append(list(self.model.coef_))
+#         self.count += 1
+#         if self.count % 50 is 0:
+#             plt.figure(1)
+#             plt.cla()
+#             plt.ion()
+#             plt.plot(np.array(self.coefs))
+#             vec_str = Agent.vector_str()
+#             plt.legend(vec_str + ["Age**2", "Price**2"], 'southeast')
+#             plt.ylim([-3, 3])
+#             plt.draw()
+#             plt.pause(0.0001)
 
 
 # class NaiveBayesAgent(Agent):
