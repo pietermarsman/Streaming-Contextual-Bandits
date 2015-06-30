@@ -7,7 +7,7 @@ import numpy as np
 
 from agents import ThompsonLogisticAgent
 from agents import GreedyAgent
-from agents import RegRegressionAgent
+# from agents import RegRegressionAgent
 from agents import MultiBetaAgent
 from agents import RandomAgent
 from agents import NaiveBayesAgent
