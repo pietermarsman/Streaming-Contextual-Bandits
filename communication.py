@@ -78,7 +78,7 @@ def propose_page(run_id, i, header=15, adtype="square", productid=10, price=10.,
         try:
             ret = requests.get(PROPOSE_PAGE_URL, params=payload)
         except Exception as e:
-            warn(e)
+            print(e)
     ret_dict = json.loads(ret.text)
     check_propose_result(ret_dict)
 

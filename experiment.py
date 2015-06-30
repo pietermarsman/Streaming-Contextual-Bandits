@@ -8,9 +8,9 @@ import numpy as np
 from agents import ThompsonLogisticAgent
 from agents import GreedyAgent
 from agents import MultiBetaAgent
+from agents import RandomAgent
 from communication import get_context, propose_page
 from misc import create_directory, add_dict
-import matplotlib.pyplot as plt
 
 __author__ = 'pieter'
 
@@ -53,46 +53,46 @@ class Experiment(threading.Thread):
                                                                               success)
 
 
+enabled = {"greedy": True, "random": False, "multib": False, "thomp": True}
+learnrates = [0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
+regulizers = [0.01, 0.005, 0.001, 0.0005, 0.0001]
+n_exp = 10
+
+
 if __name__ == "__main__":
     experiments = []
-    for i in range(1):
-        runid = random.choice(range(9900))
+    for i in range(n_exp):
+        runid = random.choice(range(10000))
         str_runid = str(runid).zfill(4)
         # Greedy agent
-        greedy_name = "greedy_runid_" + str(runid).zfill(4)
-        greedy_agent = GreedyAgent(greedy_name)
-        exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
-        experiments.append(exp_greedy)
-        exp_greedy.start()
+        if enabled["greedy"]:
+            greedy_name = "greedy_runid_" + str(runid).zfill(4)
+            greedy_agent = GreedyAgent(greedy_name)
+            exp_greedy = Experiment(greedy_agent, greedy_name, run_idx=[runid])
+            experiments.append(exp_greedy)
+            exp_greedy.start()
         # Random agent
-        # random_name = "random_runid_" + str(runid).zfill(4)
-        # random_agent = RandomAgent(random_name)
-        # exp_random = Experiment(random_agent, random_name, run_idx=[runid])
-        # exp_random.start()
+        if enabled["random"]:
+            random_name = "random_runid_" + str(runid).zfill(4)
+            random_agent = RandomAgent(random_name)
+            exp_random = Experiment(random_agent, random_name, run_idx=[runid])
+            exp_random.start()
         # Multi beta agent
-        multib_name = "multibeta_runid_" + str(runid).zfill(4)
-        multib_agent = MultiBetaAgent(multib_name)
-        exp_multib = Experiment(multib_agent, multib_name, run_idx=[runid])
-        experiments.append(exp_multib)
-        exp_multib.start()
-        # Regularized regression agent
-        # regreg_name = "regreg_runid_" + str(runid).zfill(4)
-        # regreg_agent = RegRegressionAgent(regreg_name)
-        # exp_regreg = Experiment(regreg_agent, regreg_name, run_idx=[runid])
-        # experiments.append(exp_regreg)
-        # exp_regreg.start()
-        # Naive Bayesian agent
-        # nb_name = "nb_runid_" + str(runid).zfill(4)
-        # nb_agent = NaiveBayesAgent(nb_name)
-        # exp_nb = Experiment(nb_agent, nb_name, run_idx=[runid])
-        # experiments.append(exp_nb)
-        # exp_nb.start()
+        if enabled["multib"]:
+            multib_name = "multibeta_runid_" + str(runid).zfill(4)
+            multib_agent = MultiBetaAgent(multib_name)
+            exp_multib = Experiment(multib_agent, multib_name, run_idx=[runid])
+            experiments.append(exp_multib)
+            exp_multib.start()
         # Bootstrap Thompson sampling poor man's Bayes streaming logistic regression
-        thomp_name = "thomp_runid_%s" % (str_runid)
-        thomp_agent = ThompsonLogisticAgent(thomp_name, 0.01, 1e-3, 200, 100)
-        exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
-        experiments.append(exp_thomp)
-        exp_thomp.start()
+        if enabled["thomp"]:
+            for learnrate in learnrates:
+                for regulizer in regulizers:
+                    thomp_name = "thomp(%.4f,%.4f)_runid_%s" % (learnrate, regulizer, str_runid)
+                    thomp_agent = ThompsonLogisticAgent(thomp_name, learnrate, regulizer, 200, 100)
+                    exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
+                    experiments.append(exp_thomp)
+                    exp_thomp.start()
     while any(map(lambda x: x.is_alive(), experiments)):
         time.sleep(10)
     for experiment in experiments:
