@@ -53,10 +53,10 @@ class Experiment(threading.Thread):
                                                                               success)
 
 
-enabled = {"greedy": True, "random": False, "multib": False, "thomp": True}
-learnrates = [0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
-regulizers = [0.01, 0.005, 0.001, 0.0005, 0.0001]
-n_exp = 10
+enabled = {"greedy": False, "random": False, "multib": False, "thomp": True}
+learnrates = [0.01] #[0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
+regulizers = [1e-3] #[0.01, 0.005, 0.001, 0.0005, 0.0001]
+n_exp = 200
 
 
 if __name__ == "__main__":
