@@ -239,7 +239,8 @@ class ThompsonLogisticAgent(Agent):
         _, self.actions, _ = Agent.generate_action_matrix()
         self.lrs = [{} for _ in range(lr_n)]
         if prior is not None:
-            self.lrs[:lr_n] = prior[:lr_n]
+            prior_n = min(lr_n, len(prior))
+            self.lrs[:prior_n] = prior[:prior_n]
         self.last_context = None
         self.lrs_lock = threading.Lock()
         self.from_saveable(saveable)
