@@ -13,7 +13,7 @@ PROPOSE_PAGE_URL = 'http://krabspin.uci.ru.nl/proposePage.json'
 
 
 def check_id(id, name):
-    if not (0 <= id <= 10000):
+    if not (0 <= id <= 10100):
         raise AttributeError(str(name) + " should be between 0 and 10000")
 
 

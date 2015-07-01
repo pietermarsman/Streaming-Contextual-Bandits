@@ -54,16 +54,17 @@ class Experiment(threading.Thread):
                                                                               success)
 
 
-enabled = {"greedy": True, "random": False, "multib": False, "thomp": True}
+enabled = {"greedy": True, "random": False, "multib": False, "thomp": False}
 learnrates = [0.01] #[0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
 regulizers = [1e-3] #[0.01, 0.005, 0.001, 0.0005, 0.0001]
 n_exp = 1
 priors = ThompsonLogisticAgent.parse_priors([os.path.join('agents', file) for file in os.listdir('agents') if 'thomp(0.0100,0.0010)' in file])
 
 if __name__ == "__main__":
+    now = time.time()
     experiments = []
-    for i in range(n_exp):
-        runid = random.choice(range(10000))
+    for runid in range(10001, 10011):
+        # runid = random.choice(range(10000))
         str_runid = str(runid).zfill(4)
         # Greedy agent
         if enabled["greedy"]:
@@ -97,9 +98,12 @@ if __name__ == "__main__":
     while any(map(lambda x: x.is_alive(), experiments)):
         time.sleep(10)
         # experiments[1].agent.plot(include=["price"], exclude=['ID', 'Agent'])
-        print('thomp', sum([exp.data.get('reward', 0) for exp in experiments if 'thomp' in exp.name]))
-        print('greedy', sum([exp.data.get('reward', 0) for exp in experiments if 'greedy' in exp.name]))
+        # thomp_sum = [exp.data.get('cum_reward', 0) for exp in experiments if 'thomp' in exp.name]
+        greedy_sum = [exp.data.get('cum_reward', 0) for exp in experiments if 'greedy' in exp.name]
+        # print('thomp', sum(thomp_sum) / max(len(thomp_sum), 1))
+        print('greedy', sum(greedy_sum) / max(len(greedy_sum), 1))
     for experiment in experiments:
         print(experiment.data["reward"], experiment.name)
+    print("Duration:", time.time() - now)
 
 
