@@ -55,10 +55,10 @@ class Experiment(threading.Thread):
 
 
 enabled = {"greedy": True, "random": False, "multib": False, "thomp": False}
-learnrates = [0.01] #[0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
-regulizers = [1e-3] #[0.01, 0.005, 0.001, 0.0005, 0.0001]
+# learnrates = [0.01] #[0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
+# regulizers = [1e-3] #[0.01, 0.005, 0.001, 0.0005, 0.0001]
 n_exp = 1
-priors = ThompsonLogisticAgent.parse_priors([os.path.join('agents', file) for file in os.listdir('agents') if 'thomp(0.0100,0.0010)' in file])
+# priors = ThompsonLogisticAgent.parse_priors([os.path.join('agents', file) for file in os.listdir('agents') if 'thomp(0.0100,0.0010)' in file])
 
 if __name__ == "__main__":
     now = time.time()
@@ -74,27 +74,27 @@ if __name__ == "__main__":
             experiments.append(exp_greedy)
             exp_greedy.start()
         # Random agent
-        if enabled["random"]:
-            random_name = "random_runid_" + str(runid).zfill(4)
-            random_agent = RandomAgent(random_name)
-            exp_random = Experiment(random_agent, random_name, run_idx=[runid])
-            exp_random.start()
+        # if enabled["random"]:
+        #     random_name = "random_runid_" + str(runid).zfill(4)
+        #     random_agent = RandomAgent(random_name)
+        #     exp_random = Experiment(random_agent, random_name, run_idx=[runid])
+        #     exp_random.start()
         # Multi beta agent
-        if enabled["multib"]:
-            multib_name = "multibeta_runid_" + str(runid).zfill(4)
-            multib_agent = MultiBetaAgent(multib_name)
-            exp_multib = Experiment(multib_agent, multib_name, run_idx=[runid])
-            experiments.append(exp_multib)
-            exp_multib.start()
+        # if enabled["multib"]:
+        #     multib_name = "multibeta_runid_" + str(runid).zfill(4)
+        #     multib_agent = MultiBetaAgent(multib_name)
+        #     exp_multib = Experiment(multib_agent, multib_name, run_idx=[runid])
+        #     experiments.append(exp_multib)
+        #     exp_multib.start()
         # Bootstrap Thompson sampling poor man's Bayes streaming logistic regression
-        if enabled["thomp"]:
-            for learnrate in learnrates:
-                for regulizer in regulizers:
-                    thomp_name = "thomp(%.4f,%.4f)_runid_%s" % (learnrate, regulizer, str_runid)
-                    thomp_agent = ThompsonLogisticAgent(thomp_name, learnrate, regulizer, 200, 100, prior=priors)
-                    exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
-                    experiments.append(exp_thomp)
-                    exp_thomp.start()
+        # if enabled["thomp"]:
+        #     for learnrate in learnrates:
+        #         for regulizer in regulizers:
+        #             thomp_name = "thomp(%.4f,%.4f)_runid_%s" % (learnrate, regulizer, str_runid)
+        #             thomp_agent = ThompsonLogisticAgent(thomp_name, learnrate, regulizer, 200, 100, prior=priors)
+        #             exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
+        #             experiments.append(exp_thomp)
+        #             exp_thomp.start()
     while any(map(lambda x: x.is_alive(), experiments)):
         time.sleep(10)
         # experiments[1].agent.plot(include=["price"], exclude=['ID', 'Agent'])
