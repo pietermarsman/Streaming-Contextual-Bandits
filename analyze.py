@@ -161,19 +161,24 @@ def average_param_reward(files):
         agent = np.load(os.path.join('agents', file)).item()
         log = np.load(os.path.join(DIR, file)).item()
         if 'reward' in log:
-            learnrate = agent['learnrate']
-            regulizer = agent['regulizer']
-            reward = log['reward']
-            create_dictionary(average, learnrate, {})
-            add_dict(average[learnrate], regulizer, [reward], [])
+            if 'thomp(' in file:
+                learnrate = agent['learnrate']
+                regulizer = agent['regulizer']
+                reward = log['reward']
+                create_dictionary(average, learnrate, {})
+                add_dict(average[learnrate], regulizer, [reward], [])
+            elif 'greedy' in file:
+                create_dictionary(average, 0.0, {})
+                add_dict(average[0.0], 'greedy', [log['reward']], [])
     k2_length = 0
     for k1 in average:
         k2_length = max(k2_length, len(average[k1]))
         for k2 in average[k1]:
             average[k1][k2] = sum(average[k1][k2]) / len(average[k1][k2])
+    print(average)
     return average
 
-files = [file for file in os.listdir(DIR) if "thomp(" in file]
+files = [file for file in os.listdir(DIR) if "thomp(" in file or 'greedy' in file]
 # for file in files:
 #     name = file[:-4]
 #     print("Processing: " + name)
