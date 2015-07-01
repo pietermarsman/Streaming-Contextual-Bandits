@@ -12,7 +12,7 @@ __author__ = 'pieter'
 # idea plot regret
 
 STATS = ["count", "revenue", "rate"]
-DIR = "log/"
+DIR = "agents/"
 
 
 def create_1d_stats(run_data):
