@@ -171,12 +171,14 @@ def average_param_reward(files):
                 create_dictionary(average, 0.0, {})
                 add_dict(average[0.0], 'greedy', [log['reward']], [])
     k2_length = 0
+    lengths = {}
     for k1 in average:
         k2_length = max(k2_length, len(average[k1]))
         for k2 in average[k1]:
+            create_dictionary(lengths, k1, {})
+            lengths[k1][k2] = len(average[k1][k2])
             average[k1][k2] = sum(average[k1][k2]) / len(average[k1][k2])
-    print(average)
-    return average
+    return average, lengths
 
 files = [file for file in os.listdir(DIR) if "thomp(" in file or 'greedy' in file]
 # for file in files:
@@ -190,4 +192,6 @@ files = [file for file in os.listdir(DIR) if "thomp(" in file or 'greedy' in fil
 #     plot_1d_stats(stats_1d, means, name)
 #     plot_regret(list(data.values())[0])
 
-print(json.dumps(average_param_reward(files), sort_keys=True, indent=4, separators=(',', ': ')))
+averages, lengths = average_param_reward(files)
+print(json.dumps(averages, sort_keys=True, indent=4, separators=(',', ': ')))
+print(json.dumps(lengths, sort_keys=True, indent=4, separators=(',', ': ')))
