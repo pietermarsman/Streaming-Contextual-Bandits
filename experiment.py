@@ -1,3 +1,4 @@
+import os
 import random
 import threading
 import time
@@ -56,7 +57,8 @@ class Experiment(threading.Thread):
 enabled = {"greedy": False, "random": False, "multib": False, "thomp": True}
 learnrates = [0.01] #[0.05, 0.04, 0.03, 0.02, 0.01, 0.005]
 regulizers = [1e-3] #[0.01, 0.005, 0.001, 0.0005, 0.0001]
-n_exp = 200
+n_exp = 1
+priors = ThompsonLogisticAgent.parse_priors([os.path.join('agents', file) for file in os.listdir('agents') if 'thomp' in file])
 
 
 if __name__ == "__main__":
@@ -89,12 +91,13 @@ if __name__ == "__main__":
             for learnrate in learnrates:
                 for regulizer in regulizers:
                     thomp_name = "thomp(%.4f,%.4f)_runid_%s" % (learnrate, regulizer, str_runid)
-                    thomp_agent = ThompsonLogisticAgent(thomp_name, learnrate, regulizer, 200, 100)
+                    thomp_agent = ThompsonLogisticAgent(thomp_name, learnrate, regulizer, 200, 100, prior=priors)
                     exp_thomp = Experiment(thomp_agent, thomp_name, run_idx=[runid])
                     experiments.append(exp_thomp)
                     exp_thomp.start()
     while any(map(lambda x: x.is_alive(), experiments)):
-        time.sleep(10)
+        # time.sleep(10)
+        experiments[0].agent.plot(include=["price"], exclude=['ID', 'Agent'])
     for experiment in experiments:
         print(experiment.data["reward"], experiment.name)
 

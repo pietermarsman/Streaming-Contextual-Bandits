@@ -231,13 +231,15 @@ class MultiBetaAgent(Agent):
 
 
 class ThompsonLogisticAgent(Agent):
-    def __init__(self, name, learnrate, regulizer, lr_n, action_n, saveable=None):
+    def __init__(self, name, learnrate, regulizer, lr_n, action_n, saveable=None, prior=None):
         super().__init__(name, saveable)
         self.learnrate = learnrate
         self.regulizer = regulizer
         self.action_n = action_n
         _, self.actions, _ = Agent.generate_action_matrix()
         self.lrs = [{} for _ in range(lr_n)]
+        if prior is not None:
+            self.lrs[:lr_n] = prior[:lr_n]
         self.last_context = None
         self.lrs_lock = threading.Lock()
         self.from_saveable(saveable)
@@ -333,6 +335,11 @@ class ThompsonLogisticAgent(Agent):
                     x["%s_%s" % (name1, name2)] = value1 * value2
             done[k1] = True
         return x
+
+    @staticmethod
+    def parse_priors(files):
+        agents = [np.load(file).item() for file in files]
+        return [agent['lrs'][0] for agent in agents if 'lrs' in agent]
 
 
 # class RegRegressionAgent(Agent):

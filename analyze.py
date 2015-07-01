@@ -1,9 +1,11 @@
+import json
 import os
+import re
 
 import numpy as np
 from matplotlib import pyplot as plt
 
-from misc import add_dict, create_key, create_directory, flatten
+from misc import add_dict, create_key, create_directory, flatten, create_dictionary
 
 __author__ = 'pieter'
 
@@ -153,14 +155,34 @@ def plot_regret(run_data):
     plt.close()
 
 
-for file in os.listdir(DIR):
-    name = file[:-4]
-    if "6066" in name:
-        print("Processing: " + name)
-        create_directory("stats")
-        data = np.load(DIR + file).item()
-        stats_1d, means = create_1d_stats(list(data.values())[0])
-        stats_2d = create_2d_stats(list(data.values())[0])
-        plot_2d_stats(stats_2d, name)
-        plot_1d_stats(stats_1d, means, name)
-        plot_regret(list(data.values())[0])
+def average_param_reward(files):
+    average = {}
+    for file in files:
+        agent = np.load(os.path.join('agents', file)).item()
+        log = np.load(os.path.join(DIR, file)).item()
+        if 'reward' in log:
+            learnrate = agent['learnrate']
+            regulizer = agent['regulizer']
+            reward = log['reward']
+            create_dictionary(average, learnrate, {})
+            add_dict(average[learnrate], regulizer, [reward], [])
+    k2_length = 0
+    for k1 in average:
+        k2_length = max(k2_length, len(average[k1]))
+        for k2 in average[k1]:
+            average[k1][k2] = sum(average[k1][k2]) / len(average[k1][k2])
+    return average
+
+files = [file for file in os.listdir(DIR) if "thomp(" in file]
+# for file in files:
+#     name = file[:-4]
+#     print("Processing: " + name)
+#     create_directory("stats")
+#     data = np.load(DIR + file).item()
+#     stats_1d, means = create_1d_stats(list(data.values())[0])
+#     stats_2d = create_2d_stats(list(data.values())[0])
+#     plot_2d_stats(stats_2d, name)
+#     plot_1d_stats(stats_1d, means, name)
+#     plot_regret(list(data.values())[0])
+
+print(json.dumps(average_param_reward(files), sort_keys=True, indent=4, separators=(',', ': ')))
